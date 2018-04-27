@@ -1,4 +1,4 @@
-#####################################
+# ---------------------------------------------
 # This code is for data preprocessing.
 
 # all attributes and the numbers of possible classes corresponding to the attributes
@@ -8,13 +8,12 @@
 # income : ultra-low / low / medium / high
 # education level : doctor / master / bachelor / college / high school / middle school
 
-#####################################
+# ---------------------------------------------
 
 import argparse
 from collections import Counter
 import json
 import logging
-from multiprocessing import Pool
 import numpy as np
 import os
 import random
@@ -26,7 +25,6 @@ global h_pad, h_unk
 # tokens
 #h_pad = '@h_p@'
 #h_unk = '#h_unk#'
-
 
 
 class NumpyEncoder(json.JSONEncoder):
@@ -119,7 +117,6 @@ def split_data(args, logger, data):
         x = x.tolist()
         y = y.tolist()
         whole.append((x,y))
-        
     
     logger.info("Data splitting is done. The number of training samples is '{}'"
             .format(len(whole[0][0])))

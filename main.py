@@ -6,9 +6,10 @@ import random
 import sys
 import time
 import torch
+from torch.utils.data import DataLoader
 import uuid
 
-from dataset import Data
+from dataset import DemoAttrDataset, batchify
 from exp import Experiment
 
 def get_args():
@@ -25,6 +26,9 @@ def get_args():
                         help="Adam / RMSprop / SGD / Adagrad / Adadelta / Adamax")
     parser.add_argument('--amsgrad', type=int, default=0)
     parser.add_argument('--momentum', type=float, default=0.9)
+    
+    # embeddings
+    parser.add_argument('--item-emb-size', type=int, default=200)
     
     # training parameters
     parser.add_argument('--batch-size', type=int, default=24)
@@ -53,18 +57,25 @@ def get_args():
 
 
 def run_experiment(args, logger):
-    train_data = Data(args, logger, 'train')
-    valid_data = Data(args, logger, 'valid')
-    test_data = Data(args, logger, 'test')
+    train_loader = DataLoader(
+                    dataset=DemoAttrDataset(args, logger, 'train'),
+                    batch_size=args.batch_size,
+                    shuffle=True,
+                    num_workers=2,
+                    collate_fn=batchify)
+    valid_loader = DataLoader(
+                    dataset=DemoAttrDataset(args, logger, 'valid'),
+                    batch_size=args.batch_size,
+                    shuffle=False,
+                    num_workers=2,
+                    collate_fn=batchify)
+    #test_loader = DataLoader(
+    #                dataset=DemoAttrDataset(args, logger, 'test'),
+    #                batch_size=args.batch_size,
+    #                shuffle=False,
+    #                num_workers=2)
 
-    exp = Experiment(
-                    args, logger,
-                    char_dict = train_data.char_dict,
-                    unk_dict = train_data.unk_dict,
-                    glove_mat = train_data.glove_mat,
-                    word_dict = train_data.word_dict
-                    )
-    logger.info("experiment starts!")
+    exp = Experiment(args, logger)
     
     max_loss = max_f1 = max_p = max_r = stop_cnt = 0
     for epoch in range(args.max_epoch):
@@ -72,17 +83,12 @@ def run_experiment(args, logger):
         logger.info("-- Train mode -- epoch: {}".format(epoch + 1))
         logger.info("====================================")
         t0 = time.clock()
-        if (epoch+1) >= 2 and args.data_shuffle:
-            train_data.sample_sorted_batch()
-        train_loss, train_f1, train_p, train_r, \
-            train_id_f1, train_id_p, train_id_r, \
-            train_bi_f1, train_bi_p, train_bi_r = exp.run_epoch(train_data, 
-                                                        (epoch+1), 
-                                                        trainable=True)
-        valid_loss, valid_f1, valid_p, valid_r, \
-            valid_id_f1, valid_id_p, valid_id_r, \
-            valid_bi_f1, valid_bi_p, valid_bi_r = exp.run_epoch(valid_data,
-                                                            (epoch+1))
+        
+        train_result = exp.run_epoch(train_loader, 
+                                    (epoch+1), 
+                                    trainable=True)
+        valid_result = exp.run_epoch(valid_loader,
+                                    (epoch+1))
         t1 = time.clock()
         logger.info("\n++++++[epoch {}]++++++".format(epoch + 1))
         logger.info("[Train] Loss={:5.3f}".format(train_loss))
@@ -94,6 +100,8 @@ def run_experiment(args, logger):
         logger.info("\t(binary) F1={:4.2f}, P:{:4.2f}, R:{:4.2f}"
                 .format(valid_bi_f1, valid_bi_p, valid_bi_r))
         logger.info("+++++ time : {:6.2f} +++++\n".format(t1-t0))
+        
+        # early stop
         if max_f1 < valid_f1:
             max_f1 = valid_f1
             max_loss = valid_loss
