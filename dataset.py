@@ -1,7 +1,6 @@
 import copy
 import json
 import numpy as np
-import os
 import re
 import sys
 import time
@@ -10,40 +9,56 @@ from torch.autograd import Variable
 from torch.utils.data import Dataset
 from torch.utils.data.sampler import Sampler
 
-# tokens
-h_pad = '@h_p@'
-h_unk = '#h_unk#'
+
+class Dictionary(object):
+    NULL = '<NULL>'
+    UNK = '<UNK>'
+    
+    def __init__(self, data_path):
+        load_file = json.load(open(data_path))
+        self.dict = load_file['dict']
+        self.attr_len = load_file['attr_len']
+    
+    def __len__(self):
+        return len(self.dict)
+
+    def __iter__(self):
+        return iter(self.dict)
+
+    def add(self, item):
+        if item not in self.dict:
+            self.dict.append(item)
 
 class DemoAttrDataset(Dataset):
-    def __init__(self, args, logger, data_type):
-        self.args = args
-        self.logger = logger
+    def __init__(self, data_type, data_path, logger):
         self.data_type = data_type
-        self.logger.info("loading " + data_type + " data . . .")
+        logger.info("loading " + data_type + " data . . .")
         
-        self.history = None
-        self.label = None
-        self.read_data(data_type)
-
+        self.history = self.label = None
+        self.read(data_path, logger)
+        self.dict = json.load(open('./data/preprd/dict.json'))['dict']
+    
     def __len__(self):
         return len(self.label)
 
     def __getitem__(self, index):
-        return self.history[index], self.label[index]
+        #return self.history[index], self.label[index]
+        return self.history[self.dict.index(index)], \
+                self.label[self.dict.index(index)]
 
-    def read_data(self, data_type):
-        data = json.load(open(os.path.join(
-                            self.args.data_path, data_type + '.json')))
+    def read(self, data_path, logger):
+        data = json.load(open(data_path))
         
         # check the lengths of data lists
         d_len = set()
         for k in data.keys():
             d_len.add(len(data[k]))
         assert len(d_len) == 1
-        self.logger.info("{} samples are loaded".format(d_len.pop()))
+        logger.info("{} samples are loaded".format(d_len.pop()))
         
         self.history = data['history']
         self.label = data['label']
+
 
 def batchify(batch):
     history = []
@@ -62,3 +77,5 @@ def batchify(batch):
     
     y = torch.from_numpy(np.asarray(label))
     return x, x_mask, y
+
+

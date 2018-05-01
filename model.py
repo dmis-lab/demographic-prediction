@@ -4,72 +4,78 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.utils.rnn import pad_packed_sequence, pack_padded_sequence
 
+from functools import reduce
 import numpy as np
 import sys
 import time
 
 class DemoPredictor(nn.Module):
-    def __init__(self, args, logger):
+    def __init__(self, logger, len_dict,
+                item_emb_size, label_size,
+                rnn_type, rnn_size, rnn_layer, rnn_drop):
         super(DemoPredictor, self).__init__()
-        self.unk_emb = nn.Embedding(unk_word_size, 
-                                    self.item_emb_size,
-                                    padding_idx=0)
-        self.unk_emb.weight.requires_grad = False
-        self.item_emb = nn.Embedding(len(glove_mat), 
-                                    self.item_emb_size)
-        self.init_item_emb_weight(glove_mat)
+        self.item_emb = nn.Embedding(len_dict, item_emb_size)
+        #self.init_item_emb_weight(glove_mat)
         
-        # model selection
+        self.history_encoder = getattr(nn, rnn_type)(
+                                    input_size=item_emb_size,
+                                    hidden_size=rnn_size,
+                                    num_layers=rnn_layer,
+                                    bias=True,
+                                    batch_first=True,
+                                    dropout=rnn_drop,
+                                    bidirectional=False)
+        self.W = nn.Linear(rnn_size, label_size, bias=False)
+
 
     def init_item_emb_weight(self, glove_mat):
         glove_mat = torch.from_numpy(glove_mat).cuda()
         self.glove_emb.weight.data = glove_mat
         self.glove_emb.weight.requires_grad = True
 
-    def forward(self, batch):
-        return 0
-
-    def emb_char(self, context_c, batch_size, T, C):
-        c = F.dropout(self.char_emb(
-            context_c.view(-1, C)), self.char_drop)\
-            .view(batch_size, T, C, self.char_emb_size)
-
-        c = c.permute(0, 3, 1, 2)
+    def forward(self, batch, attr_len):
+        x, x_mask, y = batch
+        x = Variable(x).cuda()
+        x_mask = Variable(x_mask).cuda()
+        y = Variable(y).cuda().float()
         
-        conv_c = F.relu(self.conv(c))
-        conv_c = torch.squeeze(F.max_pool2d(conv_c, (1, conv_c.size(-1))), 3).permute(0, 2, 1)
-        return conv_c
+        # represent items
+        embed = self.item_emb(x)
+        
+        x_len = torch.sum(x_mask, 1).long()
+        
+        # represent users
+        rnn_out, _ = self.history_encoder(embed)
+        bg = Variable(torch.arange(0, rnn_out.size(0)*rnn_out.size(1), rnn_out.size(1))).long().cuda()
+        x_idx = bg + x_len -1
+
+        user_rep = rnn_out.contiguous().view(-1, rnn_out.size(-1))\
+                        .index_select(dim=0, index=x_idx)
+        
+        # generate all the possible structured vectors
+        all_attr = []
+        for num_class in attr_len:
+            all_class = [[1 if i==j else 0 for j in range(num_class)] for i in range(num_class)]
+            all_attr.append(all_class)
+
+        def combinate(list1, list2):
+            out = []
+            for l1 in list1:
+                for l2 in list2:
+                    out.append(l1 + l2)
+            return out
+        all_posible = reduce(combinate, all_attr)
+        
+        # compute the denominator which is used for normalization.
+        W_user = self.W(user_rep)
+        denom = 0
+        for case in all_posible:
+            case = Variable(torch.from_numpy(np.asarray(case))).float().cuda()
+            denom += torch.sum(W_user*case, 1).exp()
+        
+        obj = torch.sum(W_user*y, 1).exp() / denom
+        pred = W_user.data.cpu().numpy().argmax(1)
+        return pred, -torch.sum(torch.log(obj))
+
     
-    def emb_word(self, context):
-        L = np.prod(context.size()).astype(float)
-        B = context.size(0)
-        T = context.size(1)
-        D = self.word_emb_size
-        
-        # select word indice which should be inserted into glove embedding layer
-        glove_idx_mask = torch.ge(context.view(-1), self.unk_word_size)
-        glove_idx = torch.masked_select(
-                                Variable(torch.arange(L), requires_grad=False).cuda(),
-                                glove_idx_mask)
-        glove_context = torch.masked_select(context.view(-1), glove_idx_mask)
-        glove_context -= self.unk_word_size
-        
-        # for unknown words
-        unk_idx_mask = torch.lt(context.view(-1), self.unk_word_size)
-        unk_idx = torch.masked_select(
-                                Variable(torch.arange(L), requires_grad=False).cuda(),
-                                unk_idx_mask)
-        unk_context = torch.masked_select(context.view(-1), unk_idx_mask)
-        
-        # gathering two types of word representations
-        word_emb = Variable(torch.zeros(int(L), D)).cuda()
-        if glove_context.size():
-            emb_glove = self.glove_emb(glove_context.long()).float()
-            word_emb[glove_idx.data.cpu().numpy().astype(int).tolist()] = emb_glove
-        if unk_context.size():
-            emb_unk = self.unk_word_emb(unk_context.long()).float()
-            word_emb[unk_idx.data.cpu().numpy().astype(int).tolist()] = emb_unk
-        word_emb = word_emb.view(B, T, int(L//(B*T)), D).squeeze(2)
-        return word_emb
-
 

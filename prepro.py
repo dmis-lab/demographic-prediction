@@ -21,10 +21,9 @@ import sys
 import time
 from tqdm import tqdm
 
-global h_pad, h_unk
-# tokens
-#h_pad = '@h_p@'
-#h_unk = '#h_unk#'
+global NULL, UNK
+NULL = '<NULL>'
+UNK = '<UNK>'
 
 
 class NumpyEncoder(json.JSONEncoder):
@@ -62,12 +61,12 @@ def get_args():
     # hyper-parameters
     parser.add_argument('--rand-seed', type=int, default=1,
                         help="set the random seed of the random module")
+    parser.add_argument('--count-th', type=int, default=0,
+                        help="")
     
     args = parser.parse_args()
     return args
 
-def build_dict(args, logger, counter):
-    return
 
 def rep_onehot(args, data, attr_cls, idx_gap):
     for i, d in enumerate(data):
@@ -83,6 +82,20 @@ def rep_onehot(args, data, attr_cls, idx_gap):
                     structured.extend(oh)
                 data[i][1][j] = structured
     return data
+
+def item2idx(args, data, dictionary):
+    for i, d in enumerate(data):
+        for j, h in enumerate(d[0]):
+            for k, item, in enumerate(h):
+                data[i][0][j][k] = dictionary.index(item)
+    return data
+
+def build_dict(args, counter):
+    dict = [NULL, UNK]
+    for i, c in counter.items():
+        if c > args.count_th:
+            dict.append(i)
+    return dict
 
 def split_data(args, logger, data):
     total_idx = list(range(len(data[0])))
@@ -142,7 +155,6 @@ def read_data(args, logger):
         history.append(h)
         
         history_cnt += len(h)
-        if len(label) % 2000 == 0: break
         if len(label) % 10000 == 0: 
             logger.info("{} samples have been read".format(len(label)))
     logger.info("Total number of samples : {}".format(len(label)))
@@ -176,15 +188,23 @@ def main():
     splitted_data, history_counter, attr_cls, idx_gap \
             = split_data(args, logger, (history, label))
     
+    attr_len = []
+    for a in attr_cls:
+        attr_len.append(len(a))
+    
+    # build a dictionary
+    dictionary = build_dict(args, history_counter)
+
+    # item 2 idx
+    # splitted_data = item2idx(args, splitted_data, dictionary)
+
     # represent the labels by a one-hot encoding scheme
     splitted_data = rep_onehot(args, splitted_data, attr_cls, idx_gap)
-
-    # build the dictionary given the training set
-    history_dict = build_dict(args, logger, history_counter)
     
     # save the proprecessed data sets
-    #pickle.dump(history_dict, 
-    #        open(os.path.join(args.save_path, 'dict.json'), 'w'))
+    json.dump({'dict': dictionary, 'attr_len': attr_len}, 
+            open(os.path.join(args.save_path, 'dict.json'), 'w'), 
+            cls=NumpyEncoder)
     json.dump({'history': splitted_data[0][0], 'label': splitted_data[0][1]}, 
             open(os.path.join(args.save_path, 'train.json'), 'w'), 
             cls=NumpyEncoder)

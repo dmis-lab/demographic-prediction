@@ -14,15 +14,24 @@ import torch.nn as nn
 import torch.optim as optim
 from tensorboardX import SummaryWriter
 
+from dataset import Dictionary
+from evaluation import get_score
 from model import DemoPredictor
 
 class Experiment:
-    def __init__(self, args, logger):
+    def __init__(self, args, logger, label_size):
         self.args = args
         self.logger = logger
-
-        self.logger.info("\n*** Experiment initializing . . . ***")
-        self.model = DemoPredictor(args, logger).cuda()
+        Dict = Dictionary(
+                        args.data_path+'dict.json')
+        self.attr_len = Dict.attr_len
+        self.dict = Dict.dict
+        self.logger.info("Experiment initializing . . . ")
+        self.model = DemoPredictor(
+                        logger, self.dict.__len__(),
+                        args.item_emb_size, label_size,
+                        args.rnn_type, args.rnn_size, args.rnn_layer, args.rnn_drop,
+                        ).cuda()
         self.select_optimizer()
         
         self.criterion = nn.NLLLoss()
@@ -53,19 +62,23 @@ class Experiment:
             self.model.eval()
        
         # step training or evaluation with given batch size
+        loss_sum = []
         for i, batch in enumerate(data_loader):
             t0 = time.clock()
             if trainable: 
                 self.optimizer.zero_grad()
-            logit = self.model(batch)
-            if (loss is None): continue
+            pred, loss = self.model(batch, self.attr_len)
             if trainable:
                 loss.backward()
                 nn.utils.clip_grad_norm(self.model.parameters(), self.args.grad_max_norm)
                 self.optimizer.step()
             ls = loss.data.cpu().numpy()
             loss_sum += ls[0]
-        return r
+        # TODO
+        hm_loss, wp, wr, wf1 = get_score(pred, y, self.attr_len)
+        # eval(pred)
+
+        return 0
 
 
 
