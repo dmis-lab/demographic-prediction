@@ -74,8 +74,8 @@ class DemoPredictor(nn.Module):
             denom += np.exp(np.dot(W_user_, case))
         
         obj = torch.sum(W_user*y, 1).exp() / Variable(torch.from_numpy(denom)).cuda().float()
-        pred = W_user.data.cpu().numpy().argmax(1)
-        return pred, -torch.sum(torch.log(obj))
+        logit = W_user.data.cpu().numpy()
+        return logit, -torch.sum(torch.log(obj))
 
     
 
