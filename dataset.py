@@ -42,9 +42,8 @@ class DemoAttrDataset(Dataset):
         return len(self.label)
 
     def __getitem__(self, index):
-        #return self.history[index], self.label[index]
-        return self.history[self.dict.index(index)], \
-                self.label[self.dict.index(index)]
+        return [self.dict.index(h) for h in self.history[index]], \
+                self.label[index]
 
     def read(self, data_path, logger):
         data = json.load(open(data_path))

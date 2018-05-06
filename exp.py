@@ -6,7 +6,6 @@ import numpy as np
 import os
 import sys
 import time
-from sklearn.metrics import precision_recall_fscore_support
 
 import torch
 from torch.autograd import Variable
@@ -24,12 +23,11 @@ class Experiment:
         self.logger = logger
         Dict = Dictionary(
                         args.data_path+'dict.json')
-        self.attr_len = Dict.attr_len
         self.dict = Dict.dict
         self.logger.info("Experiment initializing . . . ")
         self.model = DemoPredictor(
                         logger, self.dict.__len__(),
-                        args.item_emb_size, label_size,
+                        args.item_emb_size, label_size, Dict.attr_len,
                         args.rnn_type, args.rnn_size, args.rnn_layer, args.rnn_drop,
                         ).cuda()
         self.select_optimizer()
@@ -60,22 +58,31 @@ class Experiment:
             self.model.train()
         else: 
             self.model.eval()
-       
+        
         # step training or evaluation with given batch size
         loss_sum = []
         for i, batch in enumerate(data_loader):
+            print(batch)
             t0 = time.clock()
             if trainable: 
                 self.optimizer.zero_grad()
-            pred, loss = self.model(batch, self.attr_len)
-            if trainable:
-                loss.backward()
-                nn.utils.clip_grad_norm(self.model.parameters(), self.args.grad_max_norm)
-                self.optimizer.step()
-            ls = loss.data.cpu().numpy()
-            loss_sum += ls[0]
+            pred, loss = self.model(batch)
+            print('loss : ', i, loss)
+            try:
+                #if trainable:
+                if False:
+                    loss.backward()
+                    nn.utils.clip_grad_norm(self.model.parameters(), self.args.grad_max_norm)
+                    self.optimizer.step()
+                ls = loss.data.cpu().numpy()
+                loss_sum += ls[0]
+            except:
+                print('????????')
+                sys.exit()
         # TODO
+        print('hihi')
         hm_loss, wp, wr, wf1 = get_score(pred, y, self.attr_len)
+        print(hm_loss)
         # eval(pred)
 
         return 0
