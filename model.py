@@ -75,7 +75,7 @@ class DemoPredictor(nn.Module):
         
         obj = torch.sum(W_user*y, 1).exp() / Variable(torch.from_numpy(denom)).cuda().float()
         logit = W_user.data.cpu().numpy()
-        return logit, -torch.sum(torch.log(obj))
+        return logit, -torch.sum(torch.log(obj))/x.size(0)
 
     
 

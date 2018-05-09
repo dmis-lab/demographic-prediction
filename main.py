@@ -31,17 +31,17 @@ def get_args():
     parser.add_argument('--momentum', type=float, default=0.9)
     
     # embeddings
-    parser.add_argument('--item-emb-size', type=int, default=200)
+    parser.add_argument('--item-emb-size', type=int, default=100)
     
     # training parameters
     parser.add_argument('--batch-size', type=int, default=24)
-    parser.add_argument('--learning-rate', type=float, default=0.001)
+    parser.add_argument('--learning-rate', type=float, default=0.0025)
     parser.add_argument('--max-epoch', type=int, default=20)
     parser.add_argument('--grad-max-norm', type=float, default=5)
     
     # model's parameters
     parser.add_argument('--rnn-type', type=str, default='LSTM')
-    parser.add_argument('--rnn-size', type=int, default=100)
+    parser.add_argument('--rnn-size', type=int, default=70)
     parser.add_argument('--rnn-layer', type=int, default=1)
     parser.add_argument('--rnn-drop', type=float, default=0.2)
     parser.add_argument('--char-drop', type=float, default=0.2)
@@ -53,9 +53,9 @@ def get_args():
     parser.add_argument('--rand-search', type=int, default=0)
 
     # regularization
-    parser.add_argument('--early-stop', type=int, default=1)
+    parser.add_argument('--early-stop', type=str, default='f1')
     parser.add_argument('--var-decay', type=float, default=0.999)
-    parser.add_argument('--weight-decay', type=float, default=0.0)
+    parser.add_argument('--weight-decay', type=float, default=0.3)
     
     args = parser.parse_args()
     return args
@@ -86,29 +86,44 @@ def run_experiment(args, logger):
     
     exp = Experiment(args, logger, label_size)
     
-    max_loss = max_f1 = max_p = max_r = stop_cnt = 0
+    max_score = f_hm  = f_p = f_r = f_f1 = patience = 0
     for epoch in range(args.max_epoch):
-        logger.info("== Train mode, epoch: {} ==".format(epoch + 1))
         t0 = time.clock()
         
-        train_result = exp.run_epoch(train_loader, 
-                                    (epoch+1), 
-                                    trainable=True)
-        valid_result = exp.run_epoch(valid_loader,
-                                    (epoch+1))
+        tr_loss, tr_hm, tr_p, tr_r, tr_f1 = exp.run_epoch(train_loader, 
+                                                        trainable=True)
+        va_loss, va_hm, va_p, va_r, va_f1 = exp.run_epoch(valid_loader, 
+                                                        trainable=False)
         t1 = time.clock()
-        
+
+        logger.info("++++++++++ epoch: {} ++++++++++".format(epoch+1))
+        logger.info("[Training] Loss={:5.3f}, time:{:5.2f}"
+                            .format(tr_loss, t1-t0))
+        logger.info("Hamming={:4.2f}, P:{:4.2f}, R:{:4.2f}, F1:{:4.2f}"
+                            .format(tr_hm, tr_p, tr_r, tr_f1))
+        logger.info("[Validation] Loss={:5.3f}, time:{:5.2f}"
+                            .format(va_loss, t1-t0))
+        logger.info("Hamming={:4.2f}, P:{:4.2f}, R:{:4.2f}, F1:{:4.2f}"
+                            .format(va_hm, va_p, va_r, va_f1))
         # early stop
-        if max_f1 < valid_f1:
-            max_f1 = valid_f1
-            max_loss = valid_loss
-            max_p = valid_p
-            max_r = valid_r
-            stop_cnt = 0
-        else: stop_cnt += 1
-        if stop_cnt >= 5 and args.early_stop:
-            return (epoch+1), max_loss, max_f1, max_p, max_r
-    return (epoch+1), max_loss, max_f1, max_p, max_r
+        if args.early_stop == 'hm': score = va_hm
+        elif args.early_stop == 'p': score = va_p
+        elif args.early_stop == 'r': score = va_r
+        elif args.early_stop == 'f1': score = va_f1
+        else: score = va_loss
+
+        if max_score < score:
+            max_score = score
+            f_loss = va_loss
+            f_hm = va_hm
+            f_p = va_p
+            f_r = va_r
+            f_f1 = va_f1
+            patience = 0
+        else: patience += 1
+        if patience >= 5 and args.early_stop:
+            return (epoch+1), f_loss, f_hm, f_p, f_r, f_f1
+    return (epoch+1), f_loss, f_hm, f_p, f_r, f_f1
 
 
 def main():

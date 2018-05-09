@@ -55,7 +55,12 @@ class Experiment:
         elif(self.args.opt == 'Adadelta'):
             self.optimizer =  optim.Adadelta(parameters, lr=self.args.learning_rate) 
 
-    def run_epoch(self, data_loader, epoch, trainable=False):
+    def run_epoch(self, data_loader, trainable=False):
+        num_samples = data_loader.dataset.__len__()
+        num_steps = (num_samples // self.args.batch_size) + 1
+        self.logger.info("== {} mode : {} steps for {} samples =="
+            .format(data_loader.dataset.data_type, num_samples, num_steps))
+        
         # change the mode
         if trainable: 
             self.model.train()
@@ -63,12 +68,13 @@ class Experiment:
             self.model.eval()
         
         # step training or evaluation with given batch size
-        loss_sum = []
+        loss_sum = hm_sum = p_sum = r_sum = f1_sum = 0
         for i, batch in enumerate(data_loader):
             t0 = time.clock()
             if trainable: 
                 self.optimizer.zero_grad()
             logit, loss = self.model(batch)
+            
             if trainable:
                 loss.backward()
                 nn.utils.clip_grad_norm(self.model.parameters(), self.args.grad_max_norm)
@@ -76,12 +82,24 @@ class Experiment:
             ls = loss.data.cpu().numpy()
             loss_sum += ls[0]
         
-            # TODO
-            hm_loss, wp, wr, wf1 = get_score(logit, batch[2].numpy(), self.attr_len)
-            print(hm_loss)
-            # eval(pred)
+            hm, p, r, f1 = get_score(logit, batch[2].numpy(), self.attr_len)
+            hm_sum += hm
+            p_sum += p
+            r_sum += r
+            f1_sum += f1
+            
+            t1 = time.clock()
+            
+            if (i+1) % self.args.print_per_step == 0:
+                self.logger.info("<step {}> Loss={:5.3f}, time:{:5.2f}".format(i+1, ls[0], t1-t0))
+                self.logger.info("Hamming={:4.2f}, P:{:4.2f}, R:{:4.2f}, F1:{:4.2f}"
+                                    .format(hm, p, r, f1))
 
-        return 0
+        return loss_sum / num_steps, \
+                hm_sum / num_steps, \
+                p_sum / num_steps, \
+                r_sum / num_steps, \
+                f1_sum / num_steps
 
 
 def get_score(logit, onehot, attr_len):
