@@ -59,7 +59,7 @@ class Experiment:
         num_samples = data_loader.dataset.__len__()
         num_steps = (num_samples // self.args.batch_size) + 1
         self.logger.info("== {} mode : {} steps for {} samples =="
-            .format(data_loader.dataset.data_type, num_samples, num_steps))
+            .format(data_loader.dataset.data_type, num_steps, num_samples))
         
         # change the mode
         if trainable:
@@ -70,7 +70,6 @@ class Experiment:
         # step training or evaluation with given batch size
         loss_sum = hm_sum = p_sum = r_sum = f1_sum = 0
         for i, batch in enumerate(data_loader):
-            print(batch)
             t0 = time.clock()
             if trainable:
                 self.optimizer.zero_grad()
@@ -92,9 +91,8 @@ class Experiment:
             t1 = time.clock()
             
             if (i+1) % self.args.print_per_step == 0:
-                self.logger.info("<step {}> Loss={:5.3f}, time:{:5.2f}".format(i+1, ls[0], t1-t0))
-                self.logger.info("Hamming={:4.2f}, P:{:4.2f}, R:{:4.2f}, F1:{:4.2f}"
-                                    .format(hm, p, r, f1))
+                self.logger.info("<step {}> Loss={:5.3f}, time:{:5.2f} Hamming={:4.2f}, P:{:4.2f}, R:{:4.2f}, F1:{:4.2f}"
+                                    .format(i+1, ls[0], t1-t0, hm, p, r, f1))
 
         return loss_sum / num_steps, \
                 hm_sum / num_steps, \

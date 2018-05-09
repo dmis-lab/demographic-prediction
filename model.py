@@ -40,7 +40,8 @@ class DemoPredictor(nn.Module):
                     out.append(l1+l2)
             return out
 
-        self.all_posible = reduce(combinate, all_attr)
+        self.all_posible = Variable(torch.from_numpy(np.asarray(
+                                reduce(combinate, all_attr)))).float().cuda()
 
 
     def init_item_emb_weight(self, glove_mat):
@@ -68,12 +69,11 @@ class DemoPredictor(nn.Module):
             
         # compute the denominator which is used for normalization.
         W_user = self.W(user_rep)
-        W_user_ = W_user.data.cpu().numpy()
         denom = 0
         for case in self.all_posible:
-            denom += np.exp(np.dot(W_user_, case))
+            denom += torch.sum(W_user*case, 1).exp()
         
-        obj = torch.sum(W_user*y, 1).exp() / Variable(torch.from_numpy(denom)).cuda().float()
+        obj = torch.sum(W_user*y, 1).exp() / denom
         logit = W_user.data.cpu().numpy()
         return logit, -torch.sum(torch.log(obj))/x.size(0)
 
