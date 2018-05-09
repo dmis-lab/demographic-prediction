@@ -34,13 +34,13 @@ class NumpyEncoder(json.JSONEncoder):
 
 def get_args():
     parser = argparse.ArgumentParser()
-    
+
     # data
     parser.add_argument('--load-path', type=str, default='./data/raw/',
                         help="the path of data to be loaded")
     parser.add_argument('--save-path', type=str, default='./data/preprd/',
                         help="the path of data to be saved")
-    
+
     # experimental settings
     parser.add_argument('--data-split', type=str, default='0.8, 0.1, 0.1',
                         help="The ratio of training, validation, test sets, and so on. \
@@ -63,10 +63,9 @@ def get_args():
                         help="set the random seed of the random module")
     parser.add_argument('--count-th', type=int, default=0,
                         help="")
-    
+
     args = parser.parse_args()
     return args
-
 
 def rep_onehot(args, data, attr_cls, idx_gap):
     for i, d in enumerate(data):
@@ -100,7 +99,7 @@ def build_dict(args, counter):
 def split_data(args, logger, data):
     total_idx = list(range(len(data[0])))
     random.shuffle(total_idx)
-    
+
     spl_ratio = np.asarray(args.data_split.split(',')).astype(float)
     cum_ratio = np.cumsum(spl_ratio)
     assert cum_ratio[-1] == 1
@@ -113,7 +112,7 @@ def split_data(args, logger, data):
             idx = total_idx[int(len(total_idx)*cum_ratio[i-1]):int(len(total_idx)*r)]
         x = np.asarray(data[0])[idx]
         y = np.asarray(data[1])[idx]
-        
+
         # check the number of possible classes for each attribute
         if i == 0:
             attr_cls = []
@@ -130,7 +129,7 @@ def split_data(args, logger, data):
         x = x.tolist()
         y = y.tolist()
         whole.append((x,y))
-    
+
     logger.info("Data splitting is done. The number of training samples is '{}'"
             .format(len(whole[0][0])))
 
@@ -150,17 +149,17 @@ def read_data(args, logger):
         line = line.split('|')
         l = np.asarray(line[0].split(',')).astype(int).tolist()
         h = np.asarray(line[1].split(',')).astype(int).tolist()
-        
+
         label.append(l)
         history.append(h)
-        
+
         history_cnt += len(h)
-        if len(label) % 10000 == 0: 
+        if len(label) % 10000 == 0:
             logger.info("{} samples have been read".format(len(label)))
     logger.info("Total number of samples : {}".format(len(label)))
     logger.info("Average of user histories : {:4.3f}"
             .format(history_cnt/len(label)))
-    
+
     assert len(label) == len(history)
     return history, label
 
@@ -187,11 +186,11 @@ def main():
     # shuffle and split the data into some sets
     splitted_data, history_counter, attr_cls, idx_gap \
             = split_data(args, logger, (history, label))
-    
+
     attr_len = []
     for a in attr_cls:
         attr_len.append(len(a))
-    
+
     # build a dictionary
     dictionary = build_dict(args, history_counter)
 
@@ -200,24 +199,22 @@ def main():
 
     # represent the labels by a one-hot encoding scheme
     splitted_data = rep_onehot(args, splitted_data, attr_cls, idx_gap)
-    
+
     # save the proprecessed data sets
-    json.dump({'dict': dictionary, 'attr_len': attr_len}, 
-            open(os.path.join(args.save_path, 'dict.json'), 'w'), 
+    json.dump({'dict': dictionary, 'attr_len': attr_len},
+            open(os.path.join(args.save_path, 'dict.json'), 'w'),
             cls=NumpyEncoder)
-    json.dump({'history': splitted_data[0][0], 'label': splitted_data[0][1]}, 
-            open(os.path.join(args.save_path, 'train.json'), 'w'), 
+    json.dump({'history': splitted_data[0][0], 'label': splitted_data[0][1]},
+            open(os.path.join(args.save_path, 'train.json'), 'w'),
             cls=NumpyEncoder)
-    json.dump({'history': splitted_data[1][0], 'label': splitted_data[1][1]}, 
-            open(os.path.join(args.save_path, 'valid.json'), 'w'), 
+    json.dump({'history': splitted_data[1][0], 'label': splitted_data[1][1]},
+            open(os.path.join(args.save_path, 'valid.json'), 'w'),
             cls=NumpyEncoder)
-    json.dump({'history': splitted_data[2][0], 'label': splitted_data[2][1]}, 
-            open(os.path.join(args.save_path, 'test.json'), 'w'), 
+    json.dump({'history': splitted_data[2][0], 'label': splitted_data[2][1]},
+            open(os.path.join(args.save_path, 'test.json'), 'w'),
             cls=NumpyEncoder)
 
     logger.info("Data preprocessing is done successfully!")
 
 if __name__ == '__main__':
     main()
-
-
