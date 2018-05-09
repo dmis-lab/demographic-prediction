@@ -34,9 +34,9 @@ class Experiment:
                         args.rnn_type, args.rnn_size, args.rnn_layer, args.rnn_drop,
                         ).cuda()
         self.select_optimizer()
-        
+
         self.criterion = nn.NLLLoss()
-        
+
         self.logger.info(self.model)
 
     def select_optimizer(self):
@@ -53,20 +53,21 @@ class Experiment:
         elif(self.args.opt == 'Adagrad'):
             self.optimizer =  optim.Adagrad(parameters, lr=self.args.learning_rate)
         elif(self.args.opt == 'Adadelta'):
-            self.optimizer =  optim.Adadelta(parameters, lr=self.args.learning_rate) 
+            self.optimizer =  optim.Adadelta(parameters, lr=self.args.learning_rate)
 
     def run_epoch(self, data_loader, epoch, trainable=False):
         # change the mode
-        if trainable: 
+        if trainable:
             self.model.train()
-        else: 
+        else:
             self.model.eval()
         
         # step training or evaluation with given batch size
         loss_sum = []
         for i, batch in enumerate(data_loader):
+            print(batch)
             t0 = time.clock()
-            if trainable: 
+            if trainable:
                 self.optimizer.zero_grad()
             logit, loss = self.model(batch)
             if trainable:
@@ -82,7 +83,6 @@ class Experiment:
             # eval(pred)
 
         return 0
-
 
 def get_score(logit, onehot, attr_len):
     start = 0
@@ -104,4 +104,3 @@ def get_score(logit, onehot, attr_len):
     p, r, f1, _ = f1_score(y_true, y_pred, average='weighted')
 
     return hm_loss, p, r, f1
-
