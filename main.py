@@ -11,6 +11,7 @@ import uuid
 
 from dataset import DemoAttrDataset, batchify
 from exp import Experiment
+from mf2demo import *
 
 global label_size
 label_size = 18
@@ -29,23 +30,24 @@ def get_args():
                         help="Adam / RMSprop / SGD / Adagrad / Adadelta / Adamax")
     parser.add_argument('--amsgrad', type=int, default=0)
     parser.add_argument('--momentum', type=float, default=0.9)
-    
+
     # embeddings
-    parser.add_argument('--item-emb-size', type=int, default=100)
-    
+    parser.add_argument('--item-emb-size', type=int, default=200)
+
     # training parameters
     parser.add_argument('--batch-size', type=int, default=24)
-    parser.add_argument('--learning-rate', type=float, default=0.0025)
+    parser.add_argument('--user_emb_dim', type=int, default=40)
+    parser.add_argument('--learning-rate', type=float, default=0.0001)
     parser.add_argument('--max-epoch', type=int, default=20)
     parser.add_argument('--grad-max-norm', type=float, default=5)
-    
+
     # model's parameters
     parser.add_argument('--rnn-type', type=str, default='LSTM')
     parser.add_argument('--rnn-size', type=int, default=70)
     parser.add_argument('--rnn-layer', type=int, default=1)
     parser.add_argument('--rnn-drop', type=float, default=0.2)
     parser.add_argument('--char-drop', type=float, default=0.2)
-  
+
     # debugging and analysis
     parser.add_argument('--save-log', type=int, default=0)
     parser.add_argument('--save-output', type=int, default=0)
@@ -83,7 +85,7 @@ def run_experiment(args, logger):
     #                batch_size=args.batch_size,
     #                shuffle=False,
     #                num_workers=2)
-    
+
     exp = Experiment(args, logger, label_size)
     
     max_score = f_hm  = f_p = f_r = f_f1 = patience = 0
@@ -105,6 +107,7 @@ def run_experiment(args, logger):
                             .format(va_loss, t1-t0))
         logger.info("Hamming={:4.2f}, P:{:4.2f}, R:{:4.2f}, F1:{:4.2f}"
                             .format(va_hm, va_p, va_r, va_f1))
+
         # early stop
         if args.early_stop == 'hm': score = va_hm
         elif args.early_stop == 'p': score = va_p
@@ -129,7 +132,7 @@ def run_experiment(args, logger):
 def main():
     # get all arguments
     args = get_args()
-    
+    run(args)
     # set random seeds
     np.random.seed(args.rand_seed)
     random.seed(args.rand_seed)
@@ -151,9 +154,7 @@ def main():
     logger.info(args)
 
     ep, loss, f1, p, r = run_experiment(args, logger)
-    
+
 
 if __name__ == '__main__':
     main()
-
-
