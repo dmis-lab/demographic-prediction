@@ -75,7 +75,9 @@ class MF2Demo(nn.Module):
                     out.append(l1+l2)
             return out
 
-        self.all_posible = reduce(combinate, all_attr)
+        self.all_posible = Variable(torch.from_numpy(np.asarray(
+                              reduce(combinate, all_attr)))).float().cuda()
+
 
     def forward(self, batch):
         # batch -- [N, user_emb_dim]
@@ -84,12 +86,11 @@ class MF2Demo(nn.Module):
 
         W_user = self.mlp_layer(x)
 
-        denom = Variable(torch.zeros(x.size(0))).cuda()
+        denom = 0
         for case in self.all_posible:
-            case = Variable(torch.from_numpy(np.asarray(case))).cuda().float()
-            denom += torch.exp(torch.mm(W_user, case.unsqueeze(1))).squeeze()
+            denom += torch.sum(W_user*case, 1).exp()
 
-        obj = torch.sum(torch.mm(W_user,y.transpose(0,1)), 1).exp() / denom
+        obj = torch.sum(W_user*y, 1).exp() / denom
         logit = W_user.data.cpu().numpy()
         loss = -torch.sum(torch.log(obj))
         return logit, loss
@@ -118,14 +119,17 @@ class Solver():
         elif(self.args.opt == 'Adadelta'):
             self.optimizer =  optim.Adadelta(parameters, lr=self.args.learning_rate)
 
-    def run_epoch(self, data_loader, trainable=False):
+    def run_epoch(self, data_loader, epoch, trainable=False):
         if trainable:
+            state = 'train'
             self.model.train()
         else:
+            state = 'valid'
             self.model.eval()
 
         # step training or evaluation with given batch size
         loss_sum = []
+        hm_sum = []
         for idx, batch in enumerate(data_loader):
             if trainable:
                 self.optimizer.zero_grad()
@@ -140,9 +144,13 @@ class Solver():
 
             # TODO
             hm_loss, wp, wr, wf1 = get_score(logit, batch[1].numpy(), self.model.dict.attr_len)
+            hm_sum.append(hm_loss)
             # eval(pred)
-            if idx % 50 == 0:
-                print('loss : %d | hm : loss %.4f'%(np.asarray(loss_sum).mean(), hm_loss))
+            if idx % 200 == 0:
+                print('loss : %.4f | hamming loss %.4f'%\
+                        (np.asarray(loss_sum).mean(), np.asarray(hm_sum).mean()))
+        print('%s epoch %d summary loss : %.4f | hamming loss %.4f'%(state, epoch,
+                np.asarray(loss_sum).mean(), np.asarray(hm_sum).mean()))
 
 def get_score(logit, onehot, attr_len):
     start = 0
@@ -165,7 +173,7 @@ def get_score(logit, onehot, attr_len):
 
     return hm_loss, p, r, f1
 
-def run(args):
+def run_exp(args):
     train_loader = DataLoader(
                     dataset = MFDataset(args, args.data_path+'train.json'),
                     batch_size=args.batch_size)
@@ -176,4 +184,6 @@ def run(args):
                     shuffle=False)
 
     solver = Solver(args)
-    solver.run_epoch(train_loader, True)
+    for epoch in range(args.max_epoch):
+        solver.run_epoch(train_loader, epoch, True)
+        solver.run_epoch(valid_loader, epoch, False)
