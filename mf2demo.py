@@ -173,7 +173,7 @@ def get_score(logit, onehot, attr_len):
 
     return hm_loss, p, r, f1
 
-def run_exp(args):
+def run_mfdm_exp(args):
     train_loader = DataLoader(
                     dataset = MFDataset(args, args.data_path+'train.json'),
                     batch_size=args.batch_size)
