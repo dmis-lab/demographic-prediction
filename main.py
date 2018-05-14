@@ -37,6 +37,7 @@ def get_args():
     parser.add_argument('--batch-size', type=int, default=60)
     parser.add_argument('--learning-rate', type=float, default=0.0025)
     parser.add_argument('--user_emb_dim', type=int, default=40)
+    parser.add_argument('--num_negs', type=int, default=30)
     parser.add_argument('--max-epoch', type=int, default=20)
     parser.add_argument('--grad-max-norm', type=float, default=5)
 
@@ -56,7 +57,7 @@ def get_args():
     # regularization
     parser.add_argument('--early-stop', type=str, default='f1')
     parser.add_argument('--weight-decay', type=float, default=0.3)
-    
+
     args = parser.parse_args()
     return args
 
@@ -68,7 +69,7 @@ def run_experiment(args, logger):
     train_sampler = SortedBatchSampler(train_dataset.lengths(),
                                     args.batch_size,
                                     shuffle=True)
-    
+
     train_loader = DataLoader(
                     dataset=train_dataset,
                     batch_size=args.batch_size,
@@ -76,7 +77,7 @@ def run_experiment(args, logger):
                     sampler=train_sampler,
                     num_workers=2,
                     collate_fn=batchify)
-    
+
     # generate a data loader for validation set
     valid_loader = DataLoader(
                     dataset=DemoAttrDataset('valid',
@@ -98,11 +99,11 @@ def run_experiment(args, logger):
     for epoch in range(args.max_epoch):
         logger.info("++++++++++ epoch: {} ++++++++++".format(epoch+1))
         tr_t0 = time.clock()
-        tr_loss, tr_hm, tr_p, tr_r, tr_f1 = exp.run_epoch(train_loader, 
+        tr_loss, tr_hm, tr_p, tr_r, tr_f1 = exp.run_epoch(train_loader,
                                                         trainable=True)
         tr_t1 = time.clock()
         va_t0 = time.clock()
-        va_loss, va_hm, va_p, va_r, va_f1 = exp.run_epoch(valid_loader, 
+        va_loss, va_hm, va_p, va_r, va_f1 = exp.run_epoch(valid_loader,
                                                         trainable=False)
         va_t1 = time.clock()
 
@@ -127,6 +128,8 @@ def main():
     # get all arguments
     args = get_args()
     
+    #run_mfdm_exp(args)
+    
     # set random seeds
     np.random.seed(args.rand_seed)
     random.seed(args.rand_seed)
@@ -148,7 +151,7 @@ def main():
     logger.info(args)
 
     ep, loss, hm, f1, p, r = run_experiment(args, logger)
-    
+
 
 if __name__ == '__main__':
     main()

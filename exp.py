@@ -29,11 +29,11 @@ class Experiment:
                         args.data_path+'dict.json')
         self.dict = Dict.dict
         self.attr_len = Dict.attr_len
-        self.all_the_poss = reduce(mul, Dict.attr_len, 1) 
+        self.all_the_poss = reduce(mul, Dict.attr_len, 1)
         self.logger.info("Experiment initializing . . . ")
         self.model = DemoPredictor(
                         logger, self.dict.__len__(),
-                        args.item_emb_size, label_size, Dict.attr_len,
+                        args.item_emb_size, label_size, Dict.attr_len, args.num_negs,
                         args.rnn_type, args.rnn_size, args.rnn_layer, args.rnn_drop,
                         ).cuda()
         self.select_optimizer()
@@ -61,13 +61,13 @@ class Experiment:
         num_steps = (num_samples // self.args.batch_size) + 1
         self.logger.info("== {} mode : {} steps for {} samples =="
             .format(data_loader.dataset.data_type, num_steps, num_samples))
-        
+
         # change the mode
         if trainable:
             self.model.train()
         else:
             self.model.eval()
-        
+
         # step training or evaluation with given batch size
         loss_sum = 0
         self.y_counter = Counter()
@@ -77,16 +77,16 @@ class Experiment:
             if trainable:
                 self.optimizer.zero_grad()
             logit, loss = self.model(batch)
-            
+
             if trainable:
                 loss.backward()
                 nn.utils.clip_grad_norm(self.model.parameters(), self.args.grad_max_norm)
                 self.optimizer.step()
             ls = loss.data.cpu().numpy()
             loss_sum += ls[0]
-            
+
             self.accumulate_score(logit, batch[2].numpy())
-            
+
             if (i+1) % self.args.print_per_step == 0:
                 hm, p, r, f1 = self.get_score()
                 t1 = time.clock()
@@ -103,7 +103,7 @@ class Experiment:
             end = start + al
             pred.append(np.argmax(logit[start:end], 0) + start)
             start += al
-        
+
         y_pred = np.asarray(pred).transpose(1,0)
         y_true = np.asarray([[j for j, l in enumerate(oh) if l] \
                                 for i, oh in enumerate(onehot)])
@@ -111,7 +111,7 @@ class Experiment:
 
         for y in y_true:
             self.y_counter[str(y)] += 1
-        
+
         # count exact matchings for evaluating wP, wR, wF1
         em = [np.array_equal(y[0],y[1]) for y in zip(y_pred, y_true)]
         self.em += sum(em)
@@ -122,7 +122,7 @@ class Experiment:
         y_true = list(chain.from_iterable(
                 [[j + (i*sum(self.attr_len)) for j, l in enumerate(oh) if l]  \
                     for i, oh in enumerate(onehot)]))
-        
+
         hm_loss = hamming_loss(y_true, y_pred)
         self.hm_acc += batch_size * hm_loss
         self.num_users += batch_size
@@ -133,7 +133,7 @@ class Experiment:
         for y, cnt in self.y_counter.items():
             wP += self.em / cnt
         wP /= self.all_the_poss
-        
+
         wR = self.em / self.num_users
         if wP == 0 and wR == 0:
             wP = 0
@@ -142,5 +142,3 @@ class Experiment:
         else:
             wF1 = (2 * wP * wR) / (wP + wR)
         return hm_loss, wP, wR, wF1
-
-
