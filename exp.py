@@ -1,12 +1,14 @@
 
 import argparse
 import copy
+from collections import Counter
+from functools import reduce
 from itertools import chain
 import logging
 import numpy as np
+from operator import mul
 import os
 from sklearn.metrics import hamming_loss
-from sklearn.metrics import precision_recall_fscore_support as f1_score
 import sys
 import time
 
@@ -27,6 +29,7 @@ class Experiment:
                         args.data_path+'dict.json')
         self.dict = Dict.dict
         self.attr_len = Dict.attr_len
+        self.all_the_poss = reduce(mul, Dict.attr_len, 1) 
         self.logger.info("Experiment initializing . . . ")
         self.model = DemoPredictor(
                         logger, self.dict.__len__(),
@@ -34,9 +37,7 @@ class Experiment:
                         args.rnn_type, args.rnn_size, args.rnn_layer, args.rnn_drop,
                         ).cuda()
         self.select_optimizer()
-
         self.criterion = nn.NLLLoss()
-
         self.logger.info(self.model)
 
     def select_optimizer(self):
@@ -68,7 +69,9 @@ class Experiment:
             self.model.eval()
         
         # step training or evaluation with given batch size
-        loss_sum = hm_sum = p_sum = r_sum = f1_sum = 0
+        loss_sum = 0
+        self.y_counter = Counter()
+        self.hm_acc = self.em = self.num_users = 0
         for i, batch in enumerate(data_loader):
             t0 = time.clock()
             if trainable:
@@ -81,42 +84,63 @@ class Experiment:
                 self.optimizer.step()
             ls = loss.data.cpu().numpy()
             loss_sum += ls[0]
-        
-            hm, p, r, f1 = get_score(logit, batch[2].numpy(), self.attr_len)
-            hm_sum += hm
-            p_sum += p
-            r_sum += r
-            f1_sum += f1
             
-            t1 = time.clock()
+            self.accumulate_score(logit, batch[2].numpy())
             
             if (i+1) % self.args.print_per_step == 0:
+                hm, p, r, f1 = self.get_score()
+                t1 = time.clock()
                 self.logger.info("<step {}> Loss={:5.3f}, time:{:5.2f} Hamming={:4.2f}, P:{:4.2f}, R:{:4.2f}, F1:{:4.2f}"
                                     .format(i+1, ls[0], t1-t0, hm, p, r, f1))
+        hm, p, r, f1 = self.get_score()
+        return loss_sum / num_steps, hm, p, r, f1
 
-        return loss_sum / num_steps, \
-                hm_sum / num_steps, \
-                p_sum / num_steps, \
-                r_sum / num_steps, \
-                f1_sum / num_steps
+    def accumulate_score(self, logit, onehot):
+        start = 0
+        pred = []
+        logit = logit.transpose(1,0)
+        for al in self.attr_len:
+            end = start + al
+            pred.append(np.argmax(logit[start:end], 0) + start)
+            start += al
+        
+        y_pred = np.asarray(pred).transpose(1,0)
+        y_true = np.asarray([[j for j, l in enumerate(oh) if l] \
+                                for i, oh in enumerate(onehot)])
+        batch_size = y_true.shape[0]
 
-def get_score(logit, onehot, attr_len):
-    start = 0
-    pred = []
-    logit = logit.transpose(1,0)
-    for al in attr_len:
-        end = start + al
-        pred.append(np.argmax(logit[start:end], 0) + start)
-        start += al
-    
-    y_pred = np.asarray(pred).transpose(1,0)
-    y_pred = list(chain.from_iterable(
-            [yp + (i*sum(attr_len)) for i, yp in enumerate(y_pred)]))
-    y_true = list(chain.from_iterable(
-            [[j + (i*sum(attr_len)) for j, l in enumerate(oh) if l]  \
-                for i, oh in enumerate(onehot)]))
-    
-    hm_loss = hamming_loss(y_true, y_pred)
-    p, r, f1, _ = f1_score(y_true, y_pred, average='weighted')
+        for y in y_true:
+            self.y_counter[str(y)] += 1
+        
+        # count exact matchings for evaluating wP, wR, wF1
+        em = [np.array_equal(y[0],y[1]) for y in zip(y_pred, y_true)]
+        self.em += sum(em)
 
-    return hm_loss, p, r, f1
+        # accumulate hamming loss
+        y_pred = list(chain.from_iterable(
+                [yp + (i*sum(self.attr_len)) for i, yp in enumerate(y_pred)]))
+        y_true = list(chain.from_iterable(
+                [[j + (i*sum(self.attr_len)) for j, l in enumerate(oh) if l]  \
+                    for i, oh in enumerate(onehot)]))
+        
+        hm_loss = hamming_loss(y_true, y_pred)
+        self.hm_acc += batch_size * hm_loss
+        self.num_users += batch_size
+
+    def get_score(self):
+        hm_loss = self.hm_acc / self.num_users
+        wP = 0
+        for y, cnt in self.y_counter.items():
+            wP += self.em / cnt
+        wP /= self.all_the_poss
+        
+        wR = self.em / self.num_users
+        if wP == 0 and wR == 0:
+            wP = 0
+            wR = 0
+            wF1 = 0
+        else:
+            wF1 = (2 * wP * wR) / (wP + wR)
+        return hm_loss, wP, wR, wF1
+
+

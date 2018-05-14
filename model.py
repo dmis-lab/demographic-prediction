@@ -54,8 +54,8 @@ class DemoPredictor(nn.Module):
         x = Variable(x).cuda()
         x_mask = Variable(x_mask).cuda()
         y = Variable(y).cuda().float()
-        x_len = torch.sum(x_mask, 1).long()
-
+        x_len = torch.sum(x_mask.long(), 1)
+        
         # represent items
         embed = self.item_emb(x)
         
@@ -72,7 +72,6 @@ class DemoPredictor(nn.Module):
         denom = 0
         for case in self.all_posible:
             denom += torch.sum(W_user*case, 1).exp()
-        
         obj = torch.sum(W_user*y, 1).exp() / denom
         logit = W_user.data.cpu().numpy()
         return logit, -torch.sum(torch.log(obj))/x.size(0)

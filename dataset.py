@@ -37,12 +37,13 @@ class DemoAttrDataset(Dataset):
         self.history = self.label = None
         self.read(data_path, logger)
         self.dict = json.load(open('./data/preprd/dict.json'))['dict']
-    
+
     def __len__(self):
         return len(self.label)
 
     def __getitem__(self, index):
-        return [self.dict.index(h) for h in self.history[index]], \
+        return [self.dict.index(h) if h in self.dict else self.dict.index('<UNK>') \
+                for h in self.history[index]], \
                 self.label[index]
 
     def read(self, data_path, logger):
@@ -57,6 +58,9 @@ class DemoAttrDataset(Dataset):
         
         self.history = data['history']
         self.label = data['label']
+
+    def lengths(self):
+        return [len(h) for h in self.history]
 
 
 def batchify(batch):
@@ -73,8 +77,28 @@ def batchify(batch):
     for i, h in enumerate(history):
         x[i, :len(h)].copy_(torch.from_numpy(np.asarray(h)))
         x_mask[i, :len(h)].fill_(1)
-    
     y = torch.from_numpy(np.asarray(label))
     return x, x_mask, y
+
+class SortedBatchSampler(Sampler):
+    def __init__(self, lengths, batch_size, shuffle=True):
+        self.lengths = lengths
+        self.batch_size = batch_size
+        self.shuffle = shuffle
+
+    def __iter__(self):
+        lengths = np.array(
+                [(-l, np.random.random()) for l in self.lengths],
+                dtype=[('l1', np.int_), ('rand', np.float_)]
+        )
+        indices = np.argsort(lengths, order=('l1', 'rand'))
+        batches = [indices[i:i + self.batch_size]
+                   for i in range(0, len(indices), self.batch_size)]
+        if self.shuffle:
+            np.random.shuffle(batches)
+        return iter([i for batch in batches for i in batch])
+
+    def __len__(self):
+        return len(self.lengths)
 
 

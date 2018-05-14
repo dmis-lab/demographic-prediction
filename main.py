@@ -9,7 +9,7 @@ import torch
 from torch.utils.data import DataLoader
 import uuid
 
-from dataset import DemoAttrDataset, batchify
+from dataset import DemoAttrDataset, batchify, SortedBatchSampler
 from exp import Experiment
 
 global label_size
@@ -34,7 +34,7 @@ def get_args():
     parser.add_argument('--item-emb-size', type=int, default=100)
     
     # training parameters
-    parser.add_argument('--batch-size', type=int, default=24)
+    parser.add_argument('--batch-size', type=int, default=60)
     parser.add_argument('--learning-rate', type=float, default=0.0025)
     parser.add_argument('--max-epoch', type=int, default=20)
     parser.add_argument('--grad-max-norm', type=float, default=5)
@@ -54,7 +54,6 @@ def get_args():
 
     # regularization
     parser.add_argument('--early-stop', type=str, default='f1')
-    parser.add_argument('--var-decay', type=float, default=0.999)
     parser.add_argument('--weight-decay', type=float, default=0.3)
     
     args = parser.parse_args()
@@ -62,14 +61,22 @@ def get_args():
 
 
 def run_experiment(args, logger):
-    train_loader = DataLoader(
-                    dataset=DemoAttrDataset('train',
+    train_dataset = DemoAttrDataset('train',
                                     args.data_path+'train.json',
-                                    logger),
+                                    logger)
+    train_sampler = SortedBatchSampler(train_dataset.lengths(),
+                                    args.batch_size,
+                                    shuffle=True)
+    
+    train_loader = DataLoader(
+                    dataset=train_dataset,
                     batch_size=args.batch_size,
-                    shuffle=True,
+                    shuffle=False,
+                    sampler=train_sampler,
                     num_workers=2,
                     collate_fn=batchify)
+    
+    # generate a data loader for validation set
     valid_loader = DataLoader(
                     dataset=DemoAttrDataset('valid',
                                     args.data_path+'valid.json',
@@ -88,23 +95,20 @@ def run_experiment(args, logger):
     
     max_score = f_hm  = f_p = f_r = f_f1 = patience = 0
     for epoch in range(args.max_epoch):
-        t0 = time.clock()
-        
+        logger.info("++++++++++ epoch: {} ++++++++++".format(epoch+1))
+        tr_t0 = time.clock()
         tr_loss, tr_hm, tr_p, tr_r, tr_f1 = exp.run_epoch(train_loader, 
                                                         trainable=True)
+        tr_t1 = time.clock()
+        va_t0 = time.clock()
         va_loss, va_hm, va_p, va_r, va_f1 = exp.run_epoch(valid_loader, 
                                                         trainable=False)
-        t1 = time.clock()
+        va_t1 = time.clock()
 
-        logger.info("++++++++++ epoch: {} ++++++++++".format(epoch+1))
-        logger.info("[Training] Loss={:5.3f}, time:{:5.2f}"
-                            .format(tr_loss, t1-t0))
-        logger.info("Hamming={:4.2f}, P:{:4.2f}, R:{:4.2f}, F1:{:4.2f}"
-                            .format(tr_hm, tr_p, tr_r, tr_f1))
-        logger.info("[Validation] Loss={:5.3f}, time:{:5.2f}"
-                            .format(va_loss, t1-t0))
-        logger.info("Hamming={:4.2f}, P:{:4.2f}, R:{:4.2f}, F1:{:4.2f}"
-                            .format(va_hm, va_p, va_r, va_f1))
+        logger.info("[Training] Loss={:5.3f}, time:{:5.2}, Hamming={:4.2f}, P:{:4.2f}, R:{:4.2f}, F1:{:4.2f}"
+                            .format(tr_loss, tr_t1-tr_t0, tr_hm, tr_p, tr_r, tr_f1))
+        logger.info("[Validation] Loss={:5.3f}, time:{:5.2f}, Hamming={:4.2f}, P:{:4.2f}, R:{:4.2f}, F1:{:4.2f}"
+                            .format(va_loss, va_t1-va_t0, va_hm, va_p, va_r, va_f1))
         # early stop
         if args.early_stop == 'hm': score = va_hm
         elif args.early_stop == 'p': score = va_p
@@ -150,7 +154,7 @@ def main():
         logger.info('log file : ./save/log/'+model_id+'.log')
     logger.info(args)
 
-    ep, loss, f1, p, r = run_experiment(args, logger)
+    ep, loss, hm, f1, p, r = run_experiment(args, logger)
     
 
 if __name__ == '__main__':
