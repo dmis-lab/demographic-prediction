@@ -41,7 +41,7 @@ class MFDataset(Dataset):
     def read(self, data_path):
         data = json.load(open(data_path))
         self.label = data['label']
-        self.user_emb = np.load('./openrec/user_dim40')
+        self.user_emb = np.load('./openrec/user_dim100')
 
     def __len__(self):
         return len(self.label)
@@ -54,9 +54,9 @@ class MFDataset(Dataset):
 class MF2Demo(nn.Module):
     def __init__(self, args):
         super(MF2Demo, self).__init__()
-        self.mlp_layer = nn.Sequential(nn.Linear(args.user_emb_dim, 50),
+        self.mlp_layer = nn.Sequential(nn.Linear(args.user_emb_dim, 64),
                                     nn.Sigmoid(),
-                                    nn.Linear(50, 32),
+                                    nn.Linear(64, 32),
                                     nn.Sigmoid(),
                                     nn.Linear(32, 18))
         self.dict = Dictionary(
