@@ -1,6 +1,6 @@
 data
 data/*
-openrec_model/
+openrec/
 __pycache__
 **/__pycache__
 *.swp
