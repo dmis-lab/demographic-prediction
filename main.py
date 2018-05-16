@@ -38,7 +38,7 @@ def get_args():
     parser.add_argument('--batch-size', type=int, default=60)
     parser.add_argument('--learning-rate', type=float, default=0.0025)
     parser.add_argument('--user_emb_dim', type=int, default=40)
-    parser.add_argument('--num_negs', type=int, default=30)
+    parser.add_argument('--num_negs', type=int, default=4)
     parser.add_argument('--max-epoch', type=int, default=20)
     parser.add_argument('--grad-max-norm', type=float, default=5)
 

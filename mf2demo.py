@@ -134,7 +134,7 @@ class Solver():
             if trainable:
                 self.optimizer.zero_grad()
             logit, loss = self.model(batch)
-
+            print(loss)
             if trainable:
                 loss.backward()
                 self.optimizer.step()

@@ -82,6 +82,7 @@ class Experiment:
                 loss.backward()
                 nn.utils.clip_grad_norm(self.model.parameters(), self.args.grad_max_norm)
                 self.optimizer.step()
+
             ls = loss.data.cpu().numpy()
             loss_sum += ls[0]
 

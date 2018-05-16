@@ -82,7 +82,6 @@ class DemoPredictor(nn.Module):
 
         # compute the denominator which is used for normalization.
         W_user = self.W(user_rep)
-        denom = 0
 
         neg_logs = []
         for idx, w_user in enumerate(W_user):
@@ -90,8 +89,7 @@ class DemoPredictor(nn.Module):
             neg_logs.append(torch.log(F.sigmoid(-(neg*w_user))).sum().unsqueeze(0))
 
         neg_loss = torch.sum(torch.cat(neg_logs), 1)
-        pos_loss = torch.sum(W_user*y, 1)
-
+        pos_loss = torch.sum(torch.log(F.sigmoid(W_user*y)), 1)
         logit = W_user.data.cpu().numpy()
-
-        return logit, (pos_loss+neg_loss)/x.size(0)
+        print(-torch.sum(pos_loss+neg_loss)/x.size(0))
+        return logit, -torch.sum(pos_loss+neg_loss)/x.size(0)
