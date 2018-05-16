@@ -26,7 +26,7 @@ class Experiment:
         self.args = args
         self.logger = logger
         Dict = Dictionary(
-                        args.data_path+'dict.json')
+                args.data_path+'dict_'+args.task+args.partial_ratio+'.json')
         self.dict = Dict.dict
         self.attr_len = Dict.attr_len
         self.all_the_poss = reduce(mul, Dict.attr_len, 1)
@@ -71,13 +71,14 @@ class Experiment:
         # step training or evaluation with given batch size
         loss_sum = 0
         self.y_counter = Counter()
+        self.y_em_counter = Counter()
         self.hm_acc = self.em = self.num_users = 0
         for i, batch in enumerate(data_loader):
             t0 = time.clock()
             if trainable:
                 self.optimizer.zero_grad()
             logit, loss = self.model(batch)
-
+            
             if trainable:
                 loss.backward()
                 nn.utils.clip_grad_norm(self.model.parameters(), self.args.grad_max_norm)
@@ -85,17 +86,17 @@ class Experiment:
             ls = loss.data.cpu().numpy()
             loss_sum += ls[0]
 
-            self.accumulate_score(logit, batch[2].numpy())
+            self.accumulate_score(logit, batch[2].numpy(), batch[3].numpy())
 
             if (i+1) % self.args.print_per_step == 0:
                 hm, p, r, f1 = self.get_score()
                 t1 = time.clock()
-                self.logger.info("<step {}> Loss={:5.3f}, time:{:5.2f} Hamming={:4.2f}, P:{:4.2f}, R:{:4.2f}, F1:{:4.2f}"
+                self.logger.info("<step {}> Loss={:5.3f}, time:{:5.2f}, Hamming={:2.4f}, P:{:2.4f}, R:{:2.4f}, F1:{:2.4f}"
                                     .format(i+1, ls[0], t1-t0, hm, p, r, f1))
         hm, p, r, f1 = self.get_score()
         return loss_sum / num_steps, hm, p, r, f1
 
-    def accumulate_score(self, logit, onehot):
+    def accumulate_score(self, logit, onehot, observed):
         start = 0
         pred = []
         logit = logit.transpose(1,0)
@@ -109,12 +110,16 @@ class Experiment:
                                 for i, oh in enumerate(onehot)])
         batch_size = y_true.shape[0]
 
-        for y in y_true:
-            self.y_counter[str(y)] += 1
+        print('y pred :', y_pred)
+        print('ob :', observed)
+        sys.exit()
 
-        # count exact matchings for evaluating wP, wR, wF1
-        em = [np.array_equal(y[0],y[1]) for y in zip(y_pred, y_true)]
-        self.em += sum(em)
+        for y in zip(y_pred, y_true):
+            self.y_counter[str(y[1])] += 1
+            if np.array_equal(y[0], y[1]):
+                self.y_em_counter[str(y[1])] += 1
+                # count exact matchings for evaluating wP, wR, wF1
+                self.em += 1
 
         # accumulate hamming loss
         y_pred = list(chain.from_iterable(
@@ -131,14 +136,14 @@ class Experiment:
         hm_loss = self.hm_acc / self.num_users
         wP = 0
         for y, cnt in self.y_counter.items():
-            wP += self.em / cnt
-        wP /= self.all_the_poss
+            wP += self.y_em_counter[y] / cnt
+        wP /= len(self.y_counter)
 
         wR = self.em / self.num_users
         if wP == 0 and wR == 0:
-            wP = 0
-            wR = 0
-            wF1 = 0
+            wP = wR = wF1 = 0
         else:
             wF1 = (2 * wP * wR) / (wP + wR)
         return hm_loss, wP, wR, wF1
+
+

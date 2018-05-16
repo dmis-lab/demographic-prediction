@@ -24,6 +24,11 @@ def get_args():
     parser.add_argument('--rand-seed', type=int, default=1)
     parser.add_argument('--data-shuffle', type=int, default=1)
 
+    # task settings
+    parser.add_argument('--partial-ratio', type=str, default='10')
+    parser.add_argument('--task', type=str, default='partial',
+                        help="[partial, new_user]")
+
     # optimizations
     parser.add_argument('--opt', type=str, default='Adam',
                         help="Adam / RMSprop / SGD / Adagrad / Adadelta / Adamax")
@@ -37,7 +42,7 @@ def get_args():
     parser.add_argument('--batch-size', type=int, default=60)
     parser.add_argument('--learning-rate', type=float, default=0.0025)
     parser.add_argument('--user_emb_dim', type=int, default=40)
-    parser.add_argument('--num_negs', type=int, default=30)
+    parser.add_argument('--num_negs', type=int, default=1)
     parser.add_argument('--max-epoch', type=int, default=20)
     parser.add_argument('--grad-max-norm', type=float, default=5)
 
@@ -64,8 +69,8 @@ def get_args():
 
 def run_experiment(args, logger):
     train_dataset = DemoAttrDataset('train',
-                                    args.data_path+'train.json',
-                                    logger)
+                    args.data_path+'train_'+args.task+args.partial_ratio+'.json',
+                    logger)
     train_sampler = SortedBatchSampler(train_dataset.lengths(),
                                     args.batch_size,
                                     shuffle=True)
@@ -81,8 +86,8 @@ def run_experiment(args, logger):
     # generate a data loader for validation set
     valid_loader = DataLoader(
                     dataset=DemoAttrDataset('valid',
-                                    args.data_path+'valid.json',
-                                    logger),
+                            args.data_path+'valid_'+args.task+args.partial_ratio+'.json',
+                            logger),
                     batch_size=args.batch_size,
                     shuffle=False,
                     num_workers=2,
@@ -102,6 +107,7 @@ def run_experiment(args, logger):
         tr_loss, tr_hm, tr_p, tr_r, tr_f1 = exp.run_epoch(train_loader,
                                                         trainable=True)
         tr_t1 = time.clock()
+        
         va_t0 = time.clock()
         va_loss, va_hm, va_p, va_r, va_f1 = exp.run_epoch(valid_loader,
                                                         trainable=False)
@@ -112,11 +118,11 @@ def run_experiment(args, logger):
         logger.info("[Validation] Loss={:5.3f}, time:{:5.2f}, Hamming={:4.2f}, P:{:4.2f}, R:{:4.2f}, F1:{:4.2f}"
                             .format(va_loss, va_t1-va_t0, va_hm, va_p, va_r, va_f1))
         # early stop
-        if max_f1 < valid_f1:
-            max_f1 = valid_f1
-            max_loss = valid_loss
-            max_p = valid_p
-            max_r = valid_r
+        if max_f1 < va_f1:
+            max_f1 = va_f1
+            max_loss = va_loss
+            max_p = va_p
+            max_r = va_r
             stop_cnt = 0
         else: stop_cnt += 1
         if stop_cnt >= 5 and args.early_stop:

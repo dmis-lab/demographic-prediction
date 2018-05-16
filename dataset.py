@@ -34,7 +34,7 @@ class DemoAttrDataset(Dataset):
         self.data_type = data_type
         logger.info("loading " + data_type + " data . . .")
         
-        self.history = self.label = None
+        self.history = self.label = self.observed = None
         self.read(data_path, logger)
         self.dict = json.load(open('./data/preprd/dict.json'))['dict']
 
@@ -44,7 +44,7 @@ class DemoAttrDataset(Dataset):
     def __getitem__(self, index):
         return [self.dict.index(h) if h in self.dict else self.dict.index('<UNK>') \
                 for h in self.history[index]], \
-                self.label[index]
+                self.label[index], self.observed[index]
 
     def read(self, data_path, logger):
         data = json.load(open(data_path))
@@ -58,17 +58,18 @@ class DemoAttrDataset(Dataset):
         
         self.history = data['history']
         self.label = data['label']
+        self.observed = data['observed']
 
     def lengths(self):
         return [len(h) for h in self.history]
 
 
 def batchify(batch):
-    history = []
-    label = []
+    history, label, observed = [],[],[]
     for ex in batch:
         history.append(ex[0])
         label.append(ex[1])
+        observed.append(ex[2])
 
     # padding
     maxlen_history = max([len(h) for h in history])
@@ -78,7 +79,8 @@ def batchify(batch):
         x[i, :len(h)].copy_(torch.from_numpy(np.asarray(h)))
         x_mask[i, :len(h)].fill_(1)
     y = torch.from_numpy(np.asarray(label))
-    return x, x_mask, y
+    ob = torch.from_numpy(np.asarray(observed))
+    return x, x_mask, y, ob
 
 class SortedBatchSampler(Sampler):
     def __init__(self, lengths, batch_size, shuffle=True):

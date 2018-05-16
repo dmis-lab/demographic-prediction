@@ -62,11 +62,12 @@ class DemoPredictor(nn.Module):
         return torch.cat(neg_samples, 0)
 
     def forward(self, batch):
-        x, x_mask, y = batch
+        x, x_mask, y, ob = batch
         x = Variable(x).cuda()
         x_mask = Variable(x_mask).cuda()
         y = Variable(y).cuda().float()
         x_len = torch.sum(x_mask.long(), 1)
+        ob = Variable(ob).cuda().float()
 
         # represent items
         embed = self.item_emb(x)
@@ -80,18 +81,23 @@ class DemoPredictor(nn.Module):
         user_rep = rnn_out.contiguous().view(-1, rnn_out.size(-1))\
                         .index_select(dim=0, index=x_idx)
 
-        # compute the denominator which is used for normalization.
+        # mask to unknown attributes in training
+        # and use the rest in evaluation
         W_user = self.W(user_rep)
+        W_compact = W_user * ob
+        unknown = (W_user * torch.eq(ob, 0).float()).data.cpu().numpy()
+        
+        # compute the denominator which is used for normalization.
         denom = 0
-
         neg_logs = []
-        for idx, w_user in enumerate(W_user):
+        for idx, w_c in enumerate(W_compact):
             neg = neg_samples[idx]
-            neg_logs.append(torch.log(F.sigmoid(-(neg*w_user))).sum().unsqueeze(0))
+            neg_logs.append(F.sigmoid(-(neg*w_c)).log().sum().unsqueeze(0))
 
         neg_loss = torch.sum(torch.cat(neg_logs), 1)
-        pos_loss = torch.sum(W_user*y, 1)
+        pos_loss = torch.sum(F.sigmoid(W_compact*y).log(), 1)
 
-        logit = W_user.data.cpu().numpy()
+        return unknown, -torch.sum(pos_loss+neg_loss)/x.size(0)
 
-        return logit, (pos_loss+neg_loss)/x.size(0)
+
+
