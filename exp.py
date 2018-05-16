@@ -83,6 +83,7 @@ class Experiment:
                 loss.backward()
                 nn.utils.clip_grad_norm(self.model.parameters(), self.args.grad_max_norm)
                 self.optimizer.step()
+
             ls = loss.data.cpu().numpy()
             loss_sum += ls[0]
 
@@ -91,28 +92,29 @@ class Experiment:
             if (i+1) % self.args.print_per_step == 0:
                 hm, p, r, f1 = self.get_score()
                 t1 = time.clock()
-                self.logger.info("<step {}> Loss={:5.3f}, time:{:5.2f}, Hamming={:2.4f}, P:{:2.4f}, R:{:2.4f}, F1:{:2.4f}"
+                self.logger.info("<step {}> Loss={:5.3f}, time:{:5.2f}, Hamming={:2.3f}, P:{:2.3f}, R:{:2.3f}, F1:{:2.3f}"
                                     .format(i+1, ls[0], t1-t0, hm, p, r, f1))
         hm, p, r, f1 = self.get_score()
         return loss_sum / num_steps, hm, p, r, f1
 
     def accumulate_score(self, logit, onehot, observed):
-        start = 0
-        pred = []
-        logit = logit.transpose(1,0)
-        for al in self.attr_len:
-            end = start + al
-            pred.append(np.argmax(logit[start:end], 0) + start)
-            start += al
-
-        y_pred = np.asarray(pred).transpose(1,0)
-        y_true = np.asarray([[j for j, l in enumerate(oh) if l] \
+        y_numbering = np.asarray([[j if l else 0 for j, l in enumerate(oh)] \
                                 for i, oh in enumerate(onehot)])
-        batch_size = y_true.shape[0]
-
-        print('y pred :', y_pred)
-        print('ob :', observed)
-        sys.exit()
+        y_pred, y_true = [],[]
+        for b_idx, ob in enumerate(observed):
+            pred, true = [],[]
+            start = 0
+            for al in self.attr_len:
+                end = start + al
+                if not sum(ob[start:end]):
+                    pred.append(np.argmax(logit[b_idx][start:end], 0) + start)
+                    true.append(sum(y_numbering[b_idx][start:end]))
+                start += al
+            if pred and true:
+                y_pred.append(pred)
+                y_true.append(true)
+        
+        self.num_users += len(y_true)
 
         for y in zip(y_pred, y_true):
             self.y_counter[str(y[1])] += 1
@@ -120,18 +122,9 @@ class Experiment:
                 self.y_em_counter[str(y[1])] += 1
                 # count exact matchings for evaluating wP, wR, wF1
                 self.em += 1
-
-        # accumulate hamming loss
-        y_pred = list(chain.from_iterable(
-                [yp + (i*sum(self.attr_len)) for i, yp in enumerate(y_pred)]))
-        y_true = list(chain.from_iterable(
-                [[j + (i*sum(self.attr_len)) for j, l in enumerate(oh) if l]  \
-                    for i, oh in enumerate(onehot)]))
-
-        hm_loss = hamming_loss(y_true, y_pred)
-        self.hm_acc += batch_size * hm_loss
-        self.num_users += batch_size
-
+            # calculate and accumulate hamming loss
+            self.hm_acc += hamming_loss(y[1], y[0])
+        
     def get_score(self):
         hm_loss = self.hm_acc / self.num_users
         wP = 0

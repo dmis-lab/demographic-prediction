@@ -30,7 +30,7 @@ def get_args():
                         help="[partial, new_user]")
 
     # optimizations
-    parser.add_argument('--opt', type=str, default='Adam',
+    parser.add_argument('--opt', type=str, default='SGD',
                         help="Adam / RMSprop / SGD / Adagrad / Adadelta / Adamax")
     parser.add_argument('--amsgrad', type=int, default=0)
     parser.add_argument('--momentum', type=float, default=0.9)
@@ -40,9 +40,9 @@ def get_args():
 
     # training parameters
     parser.add_argument('--batch-size', type=int, default=60)
-    parser.add_argument('--learning-rate', type=float, default=0.0025)
+    parser.add_argument('--learning-rate', type=float, default=0.1)
     parser.add_argument('--user_emb_dim', type=int, default=40)
-    parser.add_argument('--num_negs', type=int, default=1)
+    parser.add_argument('--num_negs', type=int, default=4)
     parser.add_argument('--max-epoch', type=int, default=20)
     parser.add_argument('--grad-max-norm', type=float, default=5)
 

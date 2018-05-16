@@ -82,22 +82,26 @@ class DemoPredictor(nn.Module):
                         .index_select(dim=0, index=x_idx)
 
         # mask to unknown attributes in training
-        # and use the rest in evaluation
         W_user = self.W(user_rep)
         W_compact = W_user * ob
-        unknown = (W_user * torch.eq(ob, 0).float()).data.cpu().numpy()
+        c_idx = [i for i, s in enumerate(W_compact.sum(1).data.cpu().numpy()) if s]
+        c_idx = Variable(torch.from_numpy(np.asarray(c_idx))).long().cuda()
+        W_compact = torch.index_select(W_compact, 0, c_idx)
+        y_c = torch.index_select(y, 0, c_idx)
         
-        # compute the denominator which is used for normalization.
-        denom = 0
+        # compute the denominator which is used for normalization. (<<- this operation was deleted.)
+        # we use negative sampling for efficient optimization
         neg_logs = []
         for idx, w_c in enumerate(W_compact):
             neg = neg_samples[idx]
             neg_logs.append(F.sigmoid(-(neg*w_c)).log().sum().unsqueeze(0))
 
         neg_loss = torch.sum(torch.cat(neg_logs), 1)
-        pos_loss = torch.sum(F.sigmoid(W_compact*y).log(), 1)
+        pos_loss = torch.sum(torch.log(F.sigmoid(W_compact*y_c)), 1)
+        loss = -torch.sum(pos_loss+neg_loss)/W_compact.size(0)
+        
+        return W_user.data.cpu().numpy(), loss
 
-        return unknown, -torch.sum(pos_loss+neg_loss)/x.size(0)
 
 
 
