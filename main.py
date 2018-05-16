@@ -11,7 +11,6 @@ import uuid
 
 from dataset import DemoAttrDataset, batchify, SortedBatchSampler
 from exp import Experiment
-from mf2demo import *
 
 global label_size
 label_size = 18
@@ -32,7 +31,7 @@ def get_args():
     parser.add_argument('--momentum', type=float, default=0.9)
 
     # embeddings
-    parser.add_argument('--item-emb-size', type=int, default=200)
+    parser.add_argument('--item-emb-size', type=int, default=100)
 
     # training parameters
     parser.add_argument('--batch-size', type=int, default=60)
@@ -44,7 +43,7 @@ def get_args():
 
     # model's parameters
     parser.add_argument('--rnn-type', type=str, default='LSTM')
-    parser.add_argument('--rnn-size', type=int, default=100)
+    parser.add_argument('--rnn-size', type=int, default=70)
     parser.add_argument('--rnn-layer', type=int, default=1)
     parser.add_argument('--rnn-drop', type=float, default=0.2)
     parser.add_argument('--char-drop', type=float, default=0.2)
@@ -128,7 +127,9 @@ def run_experiment(args, logger):
 def main():
     # get all arguments
     args = get_args()
+    
     #run_mfdm_exp(args)
+    
     # set random seeds
     np.random.seed(args.rand_seed)
     random.seed(args.rand_seed)

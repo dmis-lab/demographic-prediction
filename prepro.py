@@ -12,6 +12,7 @@
 
 import argparse
 from collections import Counter
+from itertools import chain
 import json
 import logging
 import numpy as np
@@ -48,7 +49,9 @@ def get_args():
                             , which defined as '0.8, 0.1, 0.1' \
                             the ratios of each data set are separated by comma \
                             and the summation of them is 1.")
-    parser.add_argument('--partial-label', type=float, default=0.1,
+    parser.add_argument('--task', type=str, default="partial",
+                        help="[partial, new_user]")
+    parser.add_argument('--partial-ratio', type=float, default=0.1,
                         help="This argument can be used to set the observed ratio of \
                             demographic attributes randomly. \
                             The range of the ratio is [0.1, 0.9] with the step lengh as 0.1. \
@@ -71,22 +74,33 @@ def rep_onehot(args, data, attr_cls, idx_gap):
     for i, d in enumerate(data):
         for j, l in enumerate(d[1]):
             onehot = []
+            observed = []
+            k = -1
             for a, b, c in zip(l, attr_cls, idx_gap):
-                tmp = np.zeros(len(b)).astype(int).tolist()
-                tmp[a-c] = 1
-                onehot.append(tmp)
+                k += 1
+                oh_tmp = np.zeros(len(b)).astype(int).tolist()
+                oh_tmp[a-c] = 1
+                onehot.append(oh_tmp)
+                
+                if d[2][j][k]:
+                    ob_tmp = np.ones(len(b)).astype(int).tolist()
+                else:
+                    ob_tmp = np.zeros(len(b)).astype(int).tolist()
+                observed.append(ob_tmp)
             if args.structured:
-                structured = []
-                for oh in onehot:
-                    structured.extend(oh)
-                data[i][1][j] = structured
+                data[i][1][j] = list(chain.from_iterable([oh for oh in onehot]))
+                data[i][2][j] = list(chain.from_iterable([ob for ob in observed]))
     return data
 
-def item2idx(args, data, dictionary):
+def item2idx(args, logger, data, dictionary):
     for i, d in enumerate(data):
-        for j, h in enumerate(d[0]):
+        logger.info("item2idx processing . . .")
+        for j, h in tqdm(enumerate(d[0])):
             for k, item, in enumerate(h):
-                data[i][0][j][k] = dictionary.index(item)
+                if item in dictionary:
+                    data[i][0][j][k] = dictionary.index(item)
+                else:
+                    data[i][0][j][k] = dictionary.index(UNK)
     return data
 
 def build_dict(args, counter):
@@ -96,42 +110,75 @@ def build_dict(args, counter):
             dict.append(i)
     return dict
 
-def split_data(args, logger, data):
+def build_dataset(args, logger, data):
+    # check the number of possible classes for each attribute
+    attr_cls = []
+    idx_gap = []
+    all_y = np.asarray(data[1])
+    for j in range(all_y.shape[1]):
+        attr_cls.append(np.unique(np.transpose(all_y, (1,0))[j]))
+        logger.info("The {}-th attribute has {} possible classes"
+                .format((j+1), len(attr_cls[j])))
+    for a in attr_cls:
+        if min(a) == 0:
+            idx_gap.append(0)
+        else:
+            idx_gap.append(min(a))
+    
+    # generate partial labels
+    def observe_randomly(num_data, num_attr, prob):
+        observed = []
+        for i in range(num_data):
+            tmp = []
+            for j in range(num_attr):
+                tmp.append(random.random() < prob)
+            observed.append(tmp)
+        return observed
+    observed = observe_randomly(len(data[1]), len(attr_cls), args.partial_ratio)
+    
+    ###################
+    # build data sets #
+    ###################
+
+    # shuffle data indices
     total_idx = list(range(len(data[0])))
     random.shuffle(total_idx)
 
     spl_ratio = np.asarray(args.data_split.split(',')).astype(float)
-    cum_ratio = np.cumsum(spl_ratio)
-    assert cum_ratio[-1] == 1
-
+    
     whole = []
-    for i, r in enumerate(cum_ratio):
-        if i == 0:
-            idx = total_idx[0:int(len(total_idx)*r)]
-        else:
-            idx = total_idx[int(len(total_idx)*cum_ratio[i-1]):int(len(total_idx)*r)]
-        x = np.asarray(data[0])[idx]
-        y = np.asarray(data[1])[idx]
+    if args.task == 'partial':
+        tr_idx = total_idx
+        va_ratio = spl_ratio[1] / (spl_ratio[1] + spl_ratio[2])
+        va_idx = total_idx[0:int(len(total_idx)*va_ratio)]
+        te_idx = total_idx[int(len(total_idx)*va_ratio):]
+    elif args.task == 'new_user':
+        tr_idx = total_idx[:int(len(total_idx)*spl_ratio[0])]
+        va_idx = total_idx[int(len(total_idx)*spl_ratio[0]):\
+                            int(len(total_idx)*(spl_ratio[0]+spl_ratio[1]))]
+        te_idx = total_idx[int(len(total_idx)*(spl_ratio[0]+spl_ratio[1])):]
+    else:
+        print("Please check the task type. Only two choices are avalible. [partial, new_user]")
+        sys.exit()
+        
+    tr_x = np.asarray(data[0])[tr_idx].tolist()
+    tr_y = np.asarray(data[1])[tr_idx].tolist()
+    tr_ob = np.asarray(observed)[tr_idx].tolist()
+    va_x = np.asarray(data[0])[va_idx].tolist()
+    va_y = np.asarray(data[1])[va_idx].tolist()
+    va_ob = np.asarray(observed)[va_idx].tolist()
+    te_x = np.asarray(data[0])[te_idx].tolist()
+    te_y = np.asarray(data[1])[te_idx].tolist()
+    te_ob = np.asarray(observed)[te_idx].tolist()
+    
+    whole.append((tr_x, tr_y, tr_ob))
+    whole.append((va_x, va_y, va_ob))
+    whole.append((te_x, te_y, te_ob))
 
-        # check the number of possible classes for each attribute
-        if i == 0:
-            attr_cls = []
-            idx_gap = []
-            for j in range(y.shape[1]):
-                attr_cls.append(np.unique(np.transpose(y, (1,0))[j]))
-                logger.info("The {}-th attribute has {} possible classes"
-                        .format((j+1), len(attr_cls[j])))
-            for a in attr_cls:
-                if min(a) == 0:
-                    idx_gap.append(0)
-                else:
-                    idx_gap.append(min(a))
-        x = x.tolist()
-        y = y.tolist()
-        whole.append((x,y))
-
-    logger.info("Data splitting is done. The number of training samples is '{}'"
+    logger.info("Data splitting is done. The number of training samples is '{}'."
             .format(len(whole[0][0])))
+    logger.info("The number of validation and test samples is '{}' and '{}'."
+            .format(len(whole[1][0]), len(whole[2][0])))
 
     logger.info("Counting of user histories in the training set start!")
     history_counter = Counter()
@@ -152,7 +199,6 @@ def read_data(args, logger):
 
         label.append(l)
         history.append(h)
-
         history_cnt += len(h)
         if len(label) % 10000 == 0:
             logger.info("{} samples have been read".format(len(label)))
@@ -169,6 +215,7 @@ def main():
 
     # set a random seed
     random.seed(args.rand_seed)
+    np.random.seed(args.rand_seed)
 
     # set a logger
     logger = logging.getLogger('spoilerLogger')
@@ -182,10 +229,10 @@ def main():
 
     # read and get data
     history, label = read_data(args, logger)
-
+    
     # shuffle and split the data into some sets
     splitted_data, history_counter, attr_cls, idx_gap \
-            = split_data(args, logger, (history, label))
+            = build_dataset(args, logger, (history, label))
 
     attr_len = []
     for a in attr_cls:
@@ -195,23 +242,34 @@ def main():
     dictionary = build_dict(args, history_counter)
 
     # item 2 idx
-    # splitted_data = item2idx(args, splitted_data, dictionary)
+    splitted_data = item2idx(args, logger, splitted_data, dictionary)
 
     # represent the labels by a one-hot encoding scheme
+    # and convert the observed labels into maskings
     splitted_data = rep_onehot(args, splitted_data, attr_cls, idx_gap)
 
     # save the proprecessed data sets
     json.dump({'dict': dictionary, 'attr_len': attr_len},
-            open(os.path.join(args.save_path, 'dict.json'), 'w'),
+            open(os.path.join(args.save_path, 
+                'dict_' + args.task + str(int(args.partial_ratio*100)) + '.json'), 'w'),
             cls=NumpyEncoder)
-    json.dump({'history': splitted_data[0][0], 'label': splitted_data[0][1]},
-            open(os.path.join(args.save_path, 'train.json'), 'w'),
+    json.dump({'history': splitted_data[0][0], 
+                'label': splitted_data[0][1],
+                'observed': splitted_data[0][2]},
+            open(os.path.join(args.save_path,
+                'train_' + args.task + str(int(args.partial_ratio*100)) + '.json'), 'w'),
             cls=NumpyEncoder)
-    json.dump({'history': splitted_data[1][0], 'label': splitted_data[1][1]},
-            open(os.path.join(args.save_path, 'valid.json'), 'w'),
+    json.dump({'history': splitted_data[1][0],
+                'label': splitted_data[1][1],
+                'observed': splitted_data[1][2]},
+            open(os.path.join(args.save_path,
+                'valid_' + args.task + str(int(args.partial_ratio*100)) + '.json'), 'w'),
             cls=NumpyEncoder)
-    json.dump({'history': splitted_data[2][0], 'label': splitted_data[2][1]},
-            open(os.path.join(args.save_path, 'test.json'), 'w'),
+    json.dump({'history': splitted_data[2][0],
+                'label': splitted_data[2][1],
+                'observed': splitted_data[2][2]},
+            open(os.path.join(args.save_path,
+                'test_' + args.task + str(int(args.partial_ratio*100)) + '.json'), 'w'),
             cls=NumpyEncoder)
 
     logger.info("Data preprocessing is done successfully!")
