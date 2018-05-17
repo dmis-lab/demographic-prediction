@@ -50,15 +50,31 @@ class DemoPredictor(nn.Module):
         self.glove_emb.weight.data = glove_mat
         self.glove_emb.weight.requires_grad = True
 
-    def draw_sample(self, batch_size):
+    def draw_sample(self, batch_size, label):
         # weight [batch, all_posible]
-        weight = torch.FloatTensor(batch_size, self.all_posible.size(0)).uniform_(0, 1)
+
+        # find label index
+        labels = label.cpu().data.numpy()
+        np_all_possible = self.all_possible.cpu().data.numpy()
+        target_idx = []
+        for label in labels:
+            target_idx.append(np.where((np_all_possible == label).all(axis=1))[0][0])
+
+        # sampling based on uniform weight
+        weight = torch.FloatTensor(batch_size, self.all_possible.size(0)).uniform_(0, 1)
         # sample index [batch, num_neg]
-        sample_idx = Variable(torch.multinomial(weight, self.num_negs)).cuda()
+        sample_idx = torch.multinomial(weight, self.num_negs).numpy()
+
+        # check if target idx included in sample
+        for i, sample in enumerate(sample_idx):
+            while target_idx[i] in sample:
+                sample[np.where(sample== target_idx[i])] = randint(0,384)
+
+        sample_idx = Variable(torch.from_numpy(sample_idx.astype(int))).cuda()
 
         neg_samples = []
         for sample in sample_idx:
-            neg_samples.append(self.all_posible[sample].unsqueeze(0))
+            neg_samples.append(self.all_possible[sample].unsqueeze(0))
         return torch.cat(neg_samples, 0)
 
     def forward(self, batch):
@@ -71,7 +87,7 @@ class DemoPredictor(nn.Module):
 
         # represent items
         embed = self.item_emb(x)
-        neg_samples = self.draw_sample(x.size(0))
+        neg_samples = self.draw_sample(x.size(0), y)
 
         # represent users
         rnn_out, _ = self.history_encoder(embed)
@@ -88,8 +104,19 @@ class DemoPredictor(nn.Module):
         c_idx = Variable(torch.from_numpy(np.asarray(c_idx))).long().cuda()
         W_compact = torch.index_select(W_compact, 0, c_idx)
         y_c = torch.index_select(y, 0, c_idx)
-        
-        # compute the denominator which is used for normalization. (<<- this operation was deleted.)
+
+        '''
+        compute the denominator which is used for normalization. (<<- this operation was deleted.)
+
+        old version loss calculation code
+        denom = 0
+        for case in self.all_posible:
+            denom += torch.sum(W_user*case, 1).exp()
+
+        obj = torch.sum(W_user*y, 1).exp() / denom
+        logit = W_user.data.cpu().numpy()
+        loss = -torch.sum(torch.log(obj))
+        '''
         # we use negative sampling for efficient optimization
         neg_logs = []
         for idx, w_c in enumerate(W_compact):
@@ -99,9 +126,5 @@ class DemoPredictor(nn.Module):
         neg_loss = torch.sum(torch.cat(neg_logs), 1)
         pos_loss = torch.sum(torch.log(F.sigmoid(W_compact*y_c)), 1)
         loss = -torch.sum(pos_loss+neg_loss)/W_compact.size(0)
-        
+
         return W_user.data.cpu().numpy(), loss
-
-
-
-
