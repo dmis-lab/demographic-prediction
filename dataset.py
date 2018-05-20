@@ -13,7 +13,7 @@ from torch.utils.data.sampler import Sampler
 class Dictionary(object):
     NULL = '<NULL>'
     UNK = '<UNK>'
-
+    
     def __init__(self, data_path):
         load_file = json.load(open(data_path))
         self.dict = load_file['dict']
@@ -32,34 +32,29 @@ class Dictionary(object):
 class DemoAttrDataset(Dataset):
     def __init__(self, data_type, data_path, logger):
         self.data_type = data_type
-        logger.info("loading " + data_type + " data . . .")
 
         self.history = self.label = self.observed = None
         self.read(data_path, logger)
-        self.dict = json.load(open('./data/preprd/dict.json'))['dict']
 
     def __len__(self):
         return len(self.label)
 
     def __getitem__(self, index):
-        return [self.dict.index(h) if h in self.dict else self.dict.index('<UNK>') \
-                for h in self.history[index]], \
-                self.label[index], self.observed[index]
+        return self.history[index], self.label[index], self.observed[index]
 
     def read(self, data_path, logger):
         data = json.load(open(data_path))
 
-        # check the lengths of data lists
-        d_len = set()
-        for k in data.keys():
-            d_len.add(len(data[k]))
-        assert len(d_len) == 1
-        logger.info("{} samples are loaded".format(d_len.pop()))
-
-        self.history = data['history']
-        self.label = data['label']
-        self.observed = data['observed']
-
+        history, label, observed = [],[],[]
+        for i, ob in enumerate(data['observed']):
+            if sum(ob):
+                history.append(data['history'][i])
+                label.append(data['label'][i])
+                observed.append(data['observed'][i])
+        self.history = history
+        self.label = label
+        self.observed = observed
+        logger.info("{} {} samples are loaded".format(self.__len__(), self.data_type))
 
     def lengths(self):
         return [len(h) for h in self.history]

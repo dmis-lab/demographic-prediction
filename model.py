@@ -6,6 +6,7 @@ from torch.nn.utils.rnn import pad_packed_sequence, pack_padded_sequence
 
 from functools import reduce
 import numpy as np
+from random import randint
 import sys
 import time
 
@@ -41,7 +42,7 @@ class DemoPredictor(nn.Module):
                     out.append(l1+l2)
             return out
 
-        self.all_posible = Variable(torch.from_numpy(np.asarray(
+        self.all_possible = Variable(torch.from_numpy(np.asarray(
                                 reduce(combinate, all_attr)))).float().cuda()
 
 
@@ -52,7 +53,6 @@ class DemoPredictor(nn.Module):
 
     def draw_sample(self, batch_size, label):
         # weight [batch, all_posible]
-
         # find label index
         labels = label.cpu().data.numpy()
         np_all_possible = self.all_possible.cpu().data.numpy()
@@ -68,13 +68,12 @@ class DemoPredictor(nn.Module):
         # check if target idx included in sample
         for i, sample in enumerate(sample_idx):
             while target_idx[i] in sample:
-                sample[np.where(sample== target_idx[i])] = randint(0,384)
-
+                sample[np.where(sample== target_idx[i])] = randint(0, self.all_possible.size(0)-1)
         sample_idx = Variable(torch.from_numpy(sample_idx.astype(int))).cuda()
-
         neg_samples = []
         for sample in sample_idx:
             neg_samples.append(self.all_possible[sample].unsqueeze(0))
+        
         return torch.cat(neg_samples, 0)
 
     def forward(self, batch):
@@ -84,11 +83,11 @@ class DemoPredictor(nn.Module):
         y = Variable(y).cuda().float()
         x_len = torch.sum(x_mask.long(), 1)
         ob = Variable(ob).cuda().float()
-
+        
         # represent items
         embed = self.item_emb(x)
         neg_samples = self.draw_sample(x.size(0), y)
-
+        
         # represent users
         rnn_out, _ = self.history_encoder(embed)
         bg = Variable(torch.arange(0, rnn_out.size(0)*rnn_out.size(1), rnn_out.size(1))).long().cuda()
@@ -100,14 +99,8 @@ class DemoPredictor(nn.Module):
         # mask to unknown attributes in training
         W_user = self.W(user_rep)
         W_compact = W_user * ob
-        c_idx = [i for i, s in enumerate(W_compact.sum(1).data.cpu().numpy()) if s]
-        c_idx = Variable(torch.from_numpy(np.asarray(c_idx))).long().cuda()
-        W_compact = torch.index_select(W_compact, 0, c_idx)
-        y_c = torch.index_select(y, 0, c_idx)
-
+        
         '''
-        compute the denominator which is used for normalization. (<<- this operation was deleted.)
-
         old version loss calculation code
         denom = 0
         for case in self.all_posible:
@@ -117,6 +110,7 @@ class DemoPredictor(nn.Module):
         logit = W_user.data.cpu().numpy()
         loss = -torch.sum(torch.log(obj))
         '''
+        
         # we use negative sampling for efficient optimization
         neg_logs = []
         for idx, w_c in enumerate(W_compact):
@@ -124,7 +118,9 @@ class DemoPredictor(nn.Module):
             neg_logs.append(F.sigmoid(-(neg*w_c)).log().sum().unsqueeze(0))
 
         neg_loss = torch.sum(torch.cat(neg_logs), 1)
-        pos_loss = torch.sum(torch.log(F.sigmoid(W_compact*y_c)), 1)
+        pos_loss = torch.sum(torch.log(F.sigmoid(W_compact*y)), 1)
         loss = -torch.sum(pos_loss+neg_loss)/W_compact.size(0)
 
         return W_user.data.cpu().numpy(), loss
+
+

@@ -135,7 +135,7 @@ def main():
     # get all arguments
     args = get_args()
 
-    run_mfdm_exp(args)
+    #run_mfdm_exp(args)
 
     # set random seeds
     np.random.seed(args.rand_seed)
