@@ -113,9 +113,9 @@ def run_experiment(args, logger):
                                                         trainable=False)
         va_t1 = time.clock()
 
-        logger.info("[Training] Loss={:5.3f}, time:{:5.2}, Hamming={:4.2f}, P:{:4.2f}, R:{:4.2f}, F1:{:4.2f}"
+        logger.info("[Training] Loss={:5.3f}, time:{:5.2}, Hamming={:4.3f}, P:{:4.3f}, R:{:4.3f}, F1:{:4.3f}"
                             .format(tr_loss, tr_t1-tr_t0, tr_hm, tr_p, tr_r, tr_f1))
-        logger.info("[Validation] Loss={:5.3f}, time:{:5.2f}, Hamming={:4.2f}, P:{:4.2f}, R:{:4.2f}, F1:{:4.2f}"
+        logger.info("[Validation] Loss={:5.3f}, time:{:5.2f}, Hamming={:4.3f}, P:{:4.3f}, R:{:4.3f}, F1:{:4.3f}"
                             .format(va_loss, va_t1-va_t0, va_hm, va_p, va_r, va_f1))
         # early stop
         if max_f1 < va_f1:

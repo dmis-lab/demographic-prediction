@@ -74,6 +74,11 @@ class Experiment:
         self.y_em_counter = Counter()
         self.hm_acc = self.em = self.num_users = 0
         for i, batch in enumerate(data_loader):
+            ##
+            # for debugging
+            self.i = i
+            ##
+            
             t0 = time.clock()
             if trainable:
                 self.optimizer.zero_grad()
@@ -94,6 +99,7 @@ class Experiment:
                 t1 = time.clock()
                 self.logger.info("<step {}> Loss={:5.3f}, time:{:5.2f}, Hamming={:2.3f}, P:{:2.3f}, R:{:2.3f}, F1:{:2.3f}"
                                     .format(i+1, ls[0], t1-t0, hm, p, r, f1))
+                sys.exit()
         hm, p, r, f1 = self.get_score()
         return loss_sum / num_steps, hm, p, r, f1
 
@@ -128,10 +134,19 @@ class Experiment:
     def get_score(self):
         hm_loss = self.hm_acc / self.num_users
         wP = 0
+        if self.i+1 == 100:
+            print('num_labels :', len(self.y_em_counter), len(self.y_counter))
+        sum_y = 0
         for y, cnt in self.y_counter.items():
             wP += self.y_em_counter[y] / cnt
-        wP /= len(self.y_counter)
-
+            sum_y += self.y_em_counter[y]
+            if self.i+1 == 100 and self.y_em_counter[y]:
+                print('label y :', y, self.y_em_counter[y], cnt, self.y_em_counter[y]/cnt, wP)
+        wP /= len(self.y_em_counter)
+        
+        if self.i+1 == 100:
+            print('em, num_users :', self.em, self.num_users)
+            print(sum_y)
         wR = self.em / self.num_users
         if wP == 0 and wR == 0:
             wP = wR = wF1 = 0
