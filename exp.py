@@ -83,7 +83,7 @@ class Experiment:
             if trainable:
                 self.optimizer.zero_grad()
             logit, loss = self.model(batch)
-            
+
             if trainable:
                 loss.backward()
                 nn.utils.clip_grad_norm(self.model.parameters(), self.args.grad_max_norm)
@@ -106,6 +106,7 @@ class Experiment:
     def accumulate_score(self, logit, onehot, observed):
         y_numbering = np.asarray([[j if l else 0 for j, l in enumerate(oh)] \
                                 for i, oh in enumerate(onehot)])
+        print(y_numbering, y_numbering.shape)
         y_pred, y_true = [],[]
         for b_idx, ob in enumerate(observed):
             pred, true = [],[]
@@ -119,7 +120,7 @@ class Experiment:
             if pred and true:
                 y_pred.append(pred)
                 y_true.append(true)
-        
+
         self.num_users += len(y_true)
 
         for y in zip(y_pred, y_true):
@@ -130,7 +131,7 @@ class Experiment:
                 self.em += 1
             # calculate and accumulate hamming loss
             self.hm_acc += hamming_loss(y[1], y[0])
-        
+
     def get_score(self):
         hm_loss = self.hm_acc / self.num_users
         wP = 0
@@ -153,5 +154,3 @@ class Experiment:
         else:
             wF1 = (2 * wP * wR) / (wP + wR)
         return hm_loss, wP, wR, wF1
-
-

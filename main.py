@@ -11,6 +11,7 @@ import uuid
 
 from dataset import DemoAttrDataset, batchify, SortedBatchSampler
 from exp import Experiment
+from mf2demo import *
 
 global label_size
 label_size = 18
@@ -41,7 +42,7 @@ def get_args():
     # training parameters
     parser.add_argument('--batch-size', type=int, default=60)
     parser.add_argument('--learning-rate', type=float, default=0.1)
-    parser.add_argument('--user_emb_dim', type=int, default=40)
+    parser.add_argument('--user_emb_dim', type=int, default=100)
     parser.add_argument('--num_negs', type=int, default=4)
     parser.add_argument('--max-epoch', type=int, default=20)
     parser.add_argument('--grad-max-norm', type=float, default=5)
@@ -107,7 +108,7 @@ def run_experiment(args, logger):
         tr_loss, tr_hm, tr_p, tr_r, tr_f1 = exp.run_epoch(train_loader,
                                                         trainable=True)
         tr_t1 = time.clock()
-        
+
         va_t0 = time.clock()
         va_loss, va_hm, va_p, va_r, va_f1 = exp.run_epoch(valid_loader,
                                                         trainable=False)
@@ -133,9 +134,9 @@ def run_experiment(args, logger):
 def main():
     # get all arguments
     args = get_args()
-    
-    #run_mfdm_exp(args)
-    
+
+    run_mfdm_exp(args)
+
     # set random seeds
     np.random.seed(args.rand_seed)
     random.seed(args.rand_seed)
