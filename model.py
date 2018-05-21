@@ -13,21 +13,41 @@ import time
 class DemoPredictor(nn.Module):
     def __init__(self, logger, len_dict,
                 item_emb_size, label_size, attr_len, num_negs,
-                rnn_type, rnn_size, rnn_layer, rnn_drop):
+                user_rep,
+                rnn_type, rnn_size, rnn_layer, rnn_drop,
+                learning_form):
         super(DemoPredictor, self).__init__()
+        self.cum_len = np.cumsum(attr_len)
         self.num_negs = num_negs
-        self.item_emb = nn.Embedding(len_dict, item_emb_size)
+        self.user_rep = user_rep
+        self.learning_form = learning_form
+
+        self.item_emb = nn.Embedding(len_dict, item_emb_size, padding_idx=0)
         #self.init_item_emb_weight(glove_mat)
 
-        self.history_encoder = getattr(nn, rnn_type)(
-                                    input_size=item_emb_size,
-                                    hidden_size=rnn_size,
-                                    num_layers=rnn_layer,
-                                    bias=True,
-                                    batch_first=True,
-                                    dropout=rnn_drop,
-                                    bidirectional=False)
-        self.W = nn.Linear(rnn_size, label_size, bias=False)
+        # choose the way how represent users given the histories of them
+        if user_rep == "Average":
+            user_size = item_emb_size
+        elif user_rep == "RNN":
+            self.history_encoder = getattr(nn, rnn_type)(
+                                        input_size=item_emb_size,
+                                        hidden_size=rnn_size,
+                                        num_layers=rnn_layer,
+                                        bias=True,
+                                        batch_first=True,
+                                        dropout=rnn_drop,
+                                        bidirectional=False)
+            user_size = rnn_size
+
+        # choose a learning method
+        if learning_form == "seperated":
+            self.W1 = nn.Linear(user_size, attr_len[0], bias=False)
+            self.W2 = nn.Linear(user_size, attr_len[1], bias=False)
+            self.W3 = nn.Linear(user_size, attr_len[2], bias=False)
+            self.W4 = nn.Linear(user_size, attr_len[3], bias=False)
+            self.W5 = nn.Linear(user_size, attr_len[4], bias=False)
+        elif learning_form == "structured":
+            self.W = nn.Linear(user_size, label_size, bias=False)
 
         # generate all the possible structured vectors
         all_attr = []
@@ -86,41 +106,67 @@ class DemoPredictor(nn.Module):
         
         # represent items
         embed = self.item_emb(x)
+        
+        # get negative samples
         neg_samples = self.draw_sample(x.size(0), y)
         
         # represent users
-        rnn_out, _ = self.history_encoder(embed)
-        bg = Variable(torch.arange(0, rnn_out.size(0)*rnn_out.size(1), rnn_out.size(1))).long().cuda()
-        x_idx = bg + x_len -1
-
-        user_rep = rnn_out.contiguous().view(-1, rnn_out.size(-1))\
-                        .index_select(dim=0, index=x_idx)
-
+        if self.user_rep == 'Average':
+            user_rep = []
+            for i, emb in enumerate(embed):
+                user_rep.append(torch.sum(emb, 0)/x_len[i].float())
+            user_rep = torch.stack(user_rep, 0)
+        elif self.user_rep == 'RNN':
+            rnn_out, _ = self.history_encoder(embed)
+            bg = Variable(torch.arange(0, rnn_out.size(0)*rnn_out.size(1), rnn_out.size(1))).long().cuda()
+            x_idx = bg + x_len -1
+            user_rep = rnn_out.contiguous().view(-1, rnn_out.size(-1))\
+                            .index_select(dim=0, index=x_idx)
+        
         # mask to unknown attributes in training
-        W_user = self.W(user_rep)
-        W_compact = W_user * ob
-        
-        '''
-        old version loss calculation code
-        denom = 0
-        for case in self.all_posible:
-            denom += torch.sum(W_user*case, 1).exp()
+        if self.learning_form == 'seperated':
+            W_user1 = self.W1(user_rep)
+            W_user2 = self.W2(user_rep)
+            W_user3 = self.W3(user_rep)
+            W_user4 = self.W4(user_rep)
+            W_user5 = self.W5(user_rep)
+            
+            def compute_loss(W_user, full_label, start, end):
+                y = full_label.transpose(1,0)[start:end].transpose(1,0)
+                all_possible = [[1 if i==j else 0 for j in range(end-start)] \
+                                for i in range(end-start)]
+                all_possible = Variable(torch.from_numpy(np.asarray(
+                                    all_possible))).float().cuda()
+                denom = 0
+                for case in all_possible:
+                    denom += torch.sum(W_user*case, 1).exp()
+                obj = torch.sum(W_user*y, 1).exp() / denom
+                logit = W_user.data.cpu().numpy()
+                loss = -torch.sum(torch.log(obj))
+                return logit, loss
+            
+            logit1, loss1 = compute_loss(W_user1, y, 0, self.cum_len[0])
+            logit2, loss2 = compute_loss(W_user2, y, self.cum_len[0], self.cum_len[1])
+            logit3, loss3 = compute_loss(W_user3, y, self.cum_len[1], self.cum_len[2])
+            logit4, loss4 = compute_loss(W_user4, y, self.cum_len[2], self.cum_len[3])
+            logit5, loss5 = compute_loss(W_user5, y, self.cum_len[3], self.cum_len[4])
+            loss = (loss1 + loss2 + loss3 + loss4 + loss5) / x.size(0)
+            logit = np.concatenate((logit1, logit2, logit3, logit4, logit5), axis=1)
+        elif self.learning_form == 'structured':
+            W_user = self.W(user_rep)
+            W_compact = W_user * ob
+            
+            # we use negative sampling for efficient optimization
+            neg_logs = []
+            for idx, w_c in enumerate(W_compact):
+                neg = neg_samples[idx]
+                neg_logs.append(F.sigmoid(-(neg*w_c)).log().sum().unsqueeze(0))
 
-        obj = torch.sum(W_user*y, 1).exp() / denom
-        logit = W_user.data.cpu().numpy()
-        loss = -torch.sum(torch.log(obj))
-        '''
-        
-        # we use negative sampling for efficient optimization
-        neg_logs = []
-        for idx, w_c in enumerate(W_compact):
-            neg = neg_samples[idx]
-            neg_logs.append(F.sigmoid(-(neg*w_c)).log().sum().unsqueeze(0))
+            neg_loss = torch.sum(torch.cat(neg_logs), 1)
+            pos_loss = torch.sum(torch.log(F.sigmoid(W_compact*y)), 1)
+            loss = -torch.sum(pos_loss+neg_loss)/W_compact.size(0)
+            logit = W_user.data.cpu().numpy()
 
-        neg_loss = torch.sum(torch.cat(neg_logs), 1)
-        pos_loss = torch.sum(torch.log(F.sigmoid(W_compact*y)), 1)
-        loss = -torch.sum(pos_loss+neg_loss)/W_compact.size(0)
-
-        return W_user.data.cpu().numpy(), loss
+        return logit, loss
 
 

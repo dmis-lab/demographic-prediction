@@ -26,7 +26,7 @@ def get_args():
     parser.add_argument('--data-shuffle', type=int, default=1)
 
     # task settings
-    parser.add_argument('--partial-ratio', type=str, default='10')
+    parser.add_argument('--partial-ratio', type=str, default='50')
     parser.add_argument('--task', type=str, default='partial',
                         help="[partial, new_user]")
 
@@ -43,16 +43,20 @@ def get_args():
     parser.add_argument('--batch-size', type=int, default=60)
     parser.add_argument('--learning-rate', type=float, default=0.1)
     parser.add_argument('--user_emb_dim', type=int, default=100)
-    parser.add_argument('--num_negs', type=int, default=4)
+    parser.add_argument('--num_negs', type=int, default=2)
     parser.add_argument('--max-epoch', type=int, default=20)
     parser.add_argument('--grad-max-norm', type=float, default=5)
 
     # model's parameters
+    parser.add_argument('--user-rep', type=str, default='Average',
+                        help="[Average, RNN]")
     parser.add_argument('--rnn-type', type=str, default='LSTM')
     parser.add_argument('--rnn-size', type=int, default=70)
     parser.add_argument('--rnn-layer', type=int, default=1)
     parser.add_argument('--rnn-drop', type=float, default=0.2)
     parser.add_argument('--char-drop', type=float, default=0.2)
+    parser.add_argument('--learning-form', type=str, default='seperated',
+                        help="[seperated, structured]")
 
     # debugging and analysis
     parser.add_argument('--save-log', type=int, default=0)

@@ -34,7 +34,9 @@ class Experiment:
         self.model = DemoPredictor(
                         logger, self.dict.__len__(),
                         args.item_emb_size, label_size, Dict.attr_len, args.num_negs,
+                        args.user_rep,
                         args.rnn_type, args.rnn_size, args.rnn_layer, args.rnn_drop,
+                        args.learning_form
                         ).cuda()
         self.select_optimizer()
         self.criterion = nn.NLLLoss()
@@ -50,7 +52,8 @@ class Experiment:
                                         weight_decay=self.args.weight_decay,
                                         momentum=self.args.momentum)
         elif(self.args.opt == 'SGD'):
-            self.optimizer =  optim.SGD(parameters, lr=self.args.learning_rate)
+            self.optimizer =  optim.SGD(parameters, lr=self.args.learning_rate, 
+                                        momentum=self.args.momentum)
         elif(self.args.opt == 'Adagrad'):
             self.optimizer =  optim.Adagrad(parameters, lr=self.args.learning_rate)
         elif(self.args.opt == 'Adadelta'):
@@ -72,6 +75,8 @@ class Experiment:
         loss_sum = 0
         self.y_counter = Counter()
         self.y_em_counter = Counter()
+        self.yp_counter = Counter()
+        self.yt_counter = Counter()
         self.hm_acc = self.em = self.num_users = 0
         for i, batch in enumerate(data_loader):
             t0 = time.clock()
@@ -83,10 +88,8 @@ class Experiment:
                 loss.backward()
                 nn.utils.clip_grad_norm(self.model.parameters(), self.args.grad_max_norm)
                 self.optimizer.step()
-
             ls = loss.data.cpu().numpy()
             loss_sum += ls[0]
-
             self.accumulate_score(logit, batch[2].numpy(), batch[3].numpy())
 
             if (i+1) % self.args.print_per_step == 0:
@@ -94,9 +97,8 @@ class Experiment:
                 t1 = time.clock()
                 self.logger.info("<step {}> Loss={:5.3f}, time:{:5.2f}, Hamming={:2.3f}, P:{:2.3f}, R:{:2.3f}, F1:{:2.3f}"
                                     .format(i+1, ls[0], t1-t0, hm, p, r, f1))
-                print(len(self.y_em_counter), len(self.y_counter))
+                #print(len(self.y_em_counter), len(self.y_counter))
         hm, p, r, f1 = self.get_score()
-        sys.exit()
         return loss_sum / num_steps, hm, p, r, f1
 
     def accumulate_score(self, logit, onehot, observed):
@@ -118,8 +120,12 @@ class Experiment:
 
         self.num_users += len(y_true)
         
-        print('pred :', y_pred)
-        print('true :', y_true)
+        for yp in y_pred:
+            for p in yp:
+                self.yp_counter[p] += 1
+        for yp in y_true:
+            for p in yp:
+                self.yt_counter[p] += 1
 
         for y in zip(y_pred, y_true):
             self.y_counter[str(y[1])] += 1
@@ -136,7 +142,9 @@ class Experiment:
         for y, cnt in self.y_counter.items():
             wP += self.y_em_counter[y] / cnt
         wP /= len(self.y_counter)
-        print(self.y_counter)
+        #for i in range(0, 18):
+        #    print(i)
+        #    print('y-pred / y-true :', self.yp_counter[i], self.yt_counter[i])
         wR = self.em / self.num_users
         if wP == 0 and wR == 0:
             wP = wR = wF1 = 0

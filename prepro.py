@@ -105,12 +105,9 @@ def item2idx(args, logger, data, dictionary):
 
 def build_dict(args, counter):
     dict = [NULL, UNK]
-    len(counter)
     for i, c in counter.items():
         if c > args.count_th:
             dict.append(i)
-    len(dict)
-    sys.exit()
     return dict
 
 def build_dataset(args, logger, data):
