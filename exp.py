@@ -62,6 +62,7 @@ class Experiment:
     def run_epoch(self, data_loader, trainable=False):
         num_samples = data_loader.dataset.__len__()
         num_steps = (num_samples // self.args.batch_size) + 1
+        self.num_steps = num_steps
         self.logger.info("== {} mode : {} steps for {} samples =="
             .format(data_loader.dataset.data_type, num_steps, num_samples))
 
@@ -79,6 +80,7 @@ class Experiment:
         self.yt_counter = Counter()
         self.hm_acc = self.em = self.num_users = 0
         for i, batch in enumerate(data_loader):
+            self.step = i+1
             t0 = time.clock()
             if trainable:
                 self.optimizer.zero_grad()
@@ -99,19 +101,29 @@ class Experiment:
                                     .format(i+1, ls[0], t1-t0, hm, p, r, f1))
                 #print(len(self.y_em_counter), len(self.y_counter))
         hm, p, r, f1 = self.get_score()
+        #print('yp :', self.yp_counter)
+        #print('yt :', self.yt_counter)
+        #sys.exit()
         return loss_sum / num_steps, hm, p, r, f1
 
     def accumulate_score(self, logit, onehot, observed):
         y_numbering = np.asarray([[j if l else 0 for j, l in enumerate(oh)] \
                                 for i, oh in enumerate(onehot)])
+        
         y_pred, y_true = [],[]
+        th = [[0.62, 0.38],\
+                [0.55, 0.45],\
+                [0.14, 0.36, 0.37, 0.17],\
+                [0.22, 0.41, 0.22, 0.19],\
+                [0.12, 0.13, 0.39, 0.26, 0.16, 0.12]]
         for b_idx, ob in enumerate(observed):
             pred, true = [],[]
             start = 0
-            for al in self.attr_len:
+            for a_idx, al in enumerate(self.attr_len):
                 end = start + al
                 if not sum(ob[start:end]):
-                    pred.append(np.argmax(logit[b_idx][start:end], 0) + start)
+                    pred.append(np.argmax(logit[b_idx][start:end] - th[a_idx]) + start)
+                    #pred.append(np.argmax(logit[b_idx][start:end], 0) + start)
                     true.append(sum(y_numbering[b_idx][start:end]))
                 start += al
             if pred and true:
@@ -142,9 +154,10 @@ class Experiment:
         for y, cnt in self.y_counter.items():
             wP += self.y_em_counter[y] / cnt
         wP /= len(self.y_counter)
-        #for i in range(0, 18):
-        #    print(i)
-        #    print('y-pred / y-true :', self.yp_counter[i], self.yt_counter[i])
+        if self.step == self.num_steps:
+            for i in range(0, 18):
+                print('{} : y-pred / y-true : {}, {}'
+                        .format(i, self.yp_counter[i], self.yt_counter[i]))
         wR = self.em / self.num_users
         if wP == 0 and wR == 0:
             wP = wR = wF1 = 0

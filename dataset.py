@@ -54,8 +54,63 @@ class DemoAttrDataset(Dataset):
         self.history = history
         self.label = label
         self.observed = observed
+        #self.count_class()
         logger.info("{} {} samples are loaded".format(self.__len__(), self.data_type))
 
+    def count_class(self):
+        print(self.label[0])
+        print(self.observed[0])
+        female = male = 0
+        history1 = []
+        label1 = []
+        observed1 = []
+        for l_idx, l in enumerate(self.label):
+            if female >= 15905 and l[0]: continue
+            else: 
+                label1.append(l)
+                history1.append(self.history[l_idx])
+                observed1.append(self.observed[l_idx])
+                if l[0]: female += 1
+                else: male += 1
+
+        print(female, male, len(label1))
+
+        married = single = 0
+        label2 = []
+        for l_idx, l in enumerate(label1):
+            if married >= 12398 and l[2]: continue
+            else: 
+                label2.append(l)
+                if l[2]: married += 1
+                else: single += 1
+        
+        print(married, single, len(label2))
+        
+        y = ad = ma = old = 0
+        label3 = []
+        for l_idx, l in enumerate(label2):
+            label3.append(l)
+            if l[4]: y += 1
+            elif l[5]: ad += 1
+            elif l[6]: ma += 1
+            else: old += 1
+        print(y, ad, ma, old, len(label3))
+        
+        ul = low = med = high = 0
+        label4 = []
+        for l_idx, l in enumerate(label3):
+            if l[8]: ul += 1
+            elif l[9]: low += 1
+            elif l[10]: med += 1
+            else: high += 1
+
+        print(ul, low, med, high, len(label4))
+        sys.exit()
+        self.history = history1
+        self.label = label1
+        self.observed = observed1
+        print(len(self.history), len(self.label), len(self.observed))
+        
     def lengths(self):
         return [len(h) for h in self.history]
 

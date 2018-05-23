@@ -131,26 +131,61 @@ class DemoPredictor(nn.Module):
             W_user4 = self.W4(user_rep)
             W_user5 = self.W5(user_rep)
             
-            def compute_loss(W_user, full_label, start, end):
+            def compute_loss(W_user, full_label, observed, start, end, weight=None):
                 y = full_label.transpose(1,0)[start:end].transpose(1,0)
+                ob = observed.transpose(1,0)[start:end].transpose(1,0)
+                W_compact = W_user * ob
+                c_idx = [i for i, s in enumerate(W_compact.sum(1).data.cpu().numpy()) if s]
+                c_idx = Variable(torch.from_numpy(np.asarray(c_idx))).long().cuda()
+                W_compact = torch.index_select(W_compact, 0, c_idx)
+                y_c = torch.index_select(y, 0, c_idx) 
+                
                 all_possible = [[1 if i==j else 0 for j in range(end-start)] \
                                 for i in range(end-start)]
                 all_possible = Variable(torch.from_numpy(np.asarray(
                                     all_possible))).float().cuda()
                 denom = 0
                 for case in all_possible:
-                    denom += torch.sum(W_user*case, 1).exp()
-                obj = torch.sum(W_user*y, 1).exp() / denom
+                    denom += torch.sum(W_compact*case, 1).exp()
+                obj = torch.sum(W_compact*y_c, 1).exp() / denom
                 logit = W_user.data.cpu().numpy()
-                loss = -torch.sum(torch.log(obj))
-                return logit, loss
-            
-            logit1, loss1 = compute_loss(W_user1, y, 0, self.cum_len[0])
-            logit2, loss2 = compute_loss(W_user2, y, self.cum_len[0], self.cum_len[1])
-            logit3, loss3 = compute_loss(W_user3, y, self.cum_len[1], self.cum_len[2])
-            logit4, loss4 = compute_loss(W_user4, y, self.cum_len[2], self.cum_len[3])
-            logit5, loss5 = compute_loss(W_user5, y, self.cum_len[3], self.cum_len[4])
-            loss = (loss1 + loss2 + loss3 + loss4 + loss5) / x.size(0)
+                logit = F.softmax(W_user).data.cpu().numpy()
+                if weight is not None:
+                    weighted = torch.sum(y_c * weight, 1)
+                    loss = -torch.sum(obj.log()*weighted)
+                else:
+                    loss = -torch.sum(obj.log())
+                return logit, loss / y_c.size(0)
+            """
+            logit1, loss1 = compute_loss(W_user1, y, ob, 0, self.cum_len[0],
+                        Variable(torch.from_numpy(np.asarray([3, 7])*(2/10))).float().cuda())
+            logit2, loss2 = compute_loss(W_user2, y, ob, self.cum_len[0], self.cum_len[1],
+                        Variable(torch.from_numpy(np.asarray([6, 4])*(2/10))).float().cuda())
+            logit3, loss3 = compute_loss(W_user3, y, ob, self.cum_len[1], self.cum_len[2],
+                        Variable(torch.from_numpy(np.asarray([4, 2, 2, 4])*(4/10))).float().cuda())
+            logit4, loss4 = compute_loss(W_user4, y, ob, self.cum_len[2], self.cum_len[3],
+                        Variable(torch.from_numpy(np.asarray([3, 1, 3, 3])*(4/10))).float().cuda())
+            logit5, loss5 = compute_loss(W_user5, y, ob, self.cum_len[3], self.cum_len[4],
+                        Variable(torch.from_numpy(np.asarray([5, 4, 1, 2, 3, 5])*(6/20))).float().cuda())
+            """
+            """
+            logit1, loss1 = compute_loss(W_user1, y, ob, 0, self.cum_len[0],
+                        Variable(torch.from_numpy(np.asarray([71, 29])*(2/100))).float().cuda())
+            logit2, loss2 = compute_loss(W_user2, y, ob, self.cum_len[0], self.cum_len[1],
+                        Variable(torch.from_numpy(np.asarray([60, 40])*(2/100))).float().cuda())
+            logit3, loss3 = compute_loss(W_user3, y, ob, self.cum_len[1], self.cum_len[2],
+                        Variable(torch.from_numpy(np.asarray([7, 39, 42, 12])*(4/100))).float().cuda())
+            logit4, loss4 = compute_loss(W_user4, y, ob, self.cum_len[2], self.cum_len[3],
+                        Variable(torch.from_numpy(np.asarray([17, 50, 19, 14])*(4/100))).float().cuda())
+            logit5, loss5 = compute_loss(W_user5, y, ob, self.cum_len[3], self.cum_len[4],
+                        Variable(torch.from_numpy(np.asarray([1, 8, 49, 28, 12, 3])*(6/100))).float().cuda())
+            """
+            logit1, loss1 = compute_loss(W_user1, y, ob, 0, self.cum_len[0])
+            logit2, loss2 = compute_loss(W_user2, y, ob, self.cum_len[0], self.cum_len[1])
+            logit3, loss3 = compute_loss(W_user3, y, ob, self.cum_len[1], self.cum_len[2])
+            logit4, loss4 = compute_loss(W_user4, y, ob, self.cum_len[2], self.cum_len[3])
+            logit5, loss5 = compute_loss(W_user5, y, ob, self.cum_len[3], self.cum_len[4])
+            loss = (loss1 + loss2 + loss3 + loss4 + loss5)
             logit = np.concatenate((logit1, logit2, logit3, logit4, logit5), axis=1)
         elif self.learning_form == 'structured':
             W_user = self.W(user_rep)
@@ -166,7 +201,6 @@ class DemoPredictor(nn.Module):
             pos_loss = torch.sum(torch.log(F.sigmoid(W_compact*y)), 1)
             loss = -torch.sum(pos_loss+neg_loss)/W_compact.size(0)
             logit = W_user.data.cpu().numpy()
-
         return logit, loss
 
 
