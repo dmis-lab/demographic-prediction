@@ -30,11 +30,11 @@ class Dictionary(object):
             self.dict.append(item)
 
 class DemoAttrDataset(Dataset):
-    def __init__(self, data_type, data_path, logger):
+    def __init__(self, logger, data_type, data_path, aug_data_path=None):
         self.data_type = data_type
 
         self.history = self.label = self.observed = None
-        self.read(data_path, logger)
+        self.read(logger, data_path, aug_data_path)
 
     def __len__(self):
         return len(self.label)
@@ -42,9 +42,14 @@ class DemoAttrDataset(Dataset):
     def __getitem__(self, index):
         return self.history[index], self.label[index], self.observed[index]
 
-    def read(self, data_path, logger):
+    def read(self, logger, data_path, aug_data_path=None):
         data = json.load(open(data_path))
-
+        if aug_data_path is not None:
+            aug_data = json.load(open(aug_data_path))
+            data['history'] += aug_data['history']
+            data['label'] += aug_data['label']
+            data['observed'] += aug_data['observed']
+        
         history, label, observed = [],[],[]
         for i, ob in enumerate(data['observed']):
             if sum(ob):

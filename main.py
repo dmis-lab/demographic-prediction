@@ -73,9 +73,11 @@ def get_args():
 
 
 def run_experiment(args, logger):
-    train_dataset = DemoAttrDataset('train',
-                    args.data_path+'train_'+args.task+args.partial_ratio+'.json',
-                    logger)
+    train_dataset = DemoAttrDataset(
+                        logger,
+                        'train',
+                        args.data_path+'train_'+args.task+args.partial_ratio+'.json',
+                    )
     train_sampler = SortedBatchSampler(train_dataset.lengths(),
                                     args.batch_size,
                                     shuffle=True)
@@ -90,9 +92,12 @@ def run_experiment(args, logger):
 
     # generate a data loader for validation set
     valid_loader = DataLoader(
-                    dataset=DemoAttrDataset('valid',
-                            args.data_path+'valid_'+args.task+args.partial_ratio+'.json',
-                            logger),
+                    dataset=DemoAttrDataset(
+                        logger,
+                        'valid',
+                        args.data_path+'valid_'+args.task+args.partial_ratio+'.json',
+                        args.data_path+'test_'+args.task+args.partial_ratio+'.json',
+                    ),
                     batch_size=args.batch_size,
                     shuffle=False,
                     num_workers=2,

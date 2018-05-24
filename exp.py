@@ -99,11 +99,7 @@ class Experiment:
                 t1 = time.clock()
                 self.logger.info("<step {}> Loss={:5.3f}, time:{:5.2f}, Hamming={:2.3f}, P:{:2.3f}, R:{:2.3f}, F1:{:2.3f}"
                                     .format(i+1, ls[0], t1-t0, hm, p, r, f1))
-                #print(len(self.y_em_counter), len(self.y_counter))
         hm, p, r, f1 = self.get_score()
-        #print('yp :', self.yp_counter)
-        #print('yt :', self.yt_counter)
-        #sys.exit()
         return loss_sum / num_steps, hm, p, r, f1
 
     def accumulate_score(self, logit, onehot, observed):
@@ -153,11 +149,14 @@ class Experiment:
         wP = 0
         for y, cnt in self.y_counter.items():
             wP += self.y_em_counter[y] / cnt
-        wP /= len(self.y_counter)
+        ## for debugging
         if self.step == self.num_steps:
             for i in range(0, 18):
                 print('{} : y-pred / y-true : {}, {}'
                         .format(i, self.yp_counter[i], self.yt_counter[i]))
+            print(len(self.y_em_counter), len(self.y_counter), wP / len(self.y_em_counter))
+        ##
+        wP /= len(self.y_counter)
         wR = self.em / self.num_users
         if wP == 0 and wR == 0:
             wP = wR = wF1 = 0
