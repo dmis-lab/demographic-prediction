@@ -12,15 +12,17 @@ import time
 
 class DemoPredictor(nn.Module):
     def __init__(self, logger, len_dict,
-                item_emb_size, label_size, attr_len, num_negs,
-                user_rep,
+                item_emb_size, attr_len, num_negs, user_rep,
                 rnn_type, rnn_size, rnn_layer, rnn_drop,
-                learning_form):
+                learning_form, tasks=[0,1,2,3,4]):
         super(DemoPredictor, self).__init__()
         self.cum_len = np.cumsum(attr_len)
         self.num_negs = num_negs
         self.user_rep = user_rep
         self.learning_form = learning_form
+        self.optimizer = None
+
+        label_size = sum([al for i, al in enumerate(attr_len) if i in tasks])
 
         self.item_emb = nn.Embedding(len_dict, item_emb_size, padding_idx=0)
         #self.init_item_emb_weight(glove_mat)
@@ -41,11 +43,12 @@ class DemoPredictor(nn.Module):
 
         # choose a learning method
         if learning_form == "seperated":
-            self.W1 = nn.Linear(user_size, attr_len[0], bias=False)
-            self.W2 = nn.Linear(user_size, attr_len[1], bias=False)
-            self.W3 = nn.Linear(user_size, attr_len[2], bias=False)
-            self.W4 = nn.Linear(user_size, attr_len[3], bias=False)
-            self.W5 = nn.Linear(user_size, attr_len[4], bias=False)
+            self.W_all = []
+            for i, al in enumerate(attr_len):
+                if i in tasks:
+                    self.W_all.append(nn.Linear(user_size, attr_len[i], bias=False))
+                else:
+                    self.W_all.append(0)
         elif learning_form == "structured":
             self.W = nn.Linear(user_size, label_size, bias=False)
 
@@ -125,11 +128,12 @@ class DemoPredictor(nn.Module):
         
         # mask to unknown attributes in training
         if self.learning_form == 'seperated':
-            W_user1 = self.W1(user_rep)
-            W_user2 = self.W2(user_rep)
-            W_user3 = self.W3(user_rep)
-            W_user4 = self.W4(user_rep)
-            W_user5 = self.W5(user_rep)
+            W_user = []
+            for W in self.W_all:
+                if W != 0:
+                    W_user.append(W(user_rep))
+            print(W_user)
+            sys.exit()
             
             def compute_loss(W_user, full_label, observed, start, end, weight=None):
                 y = full_label.transpose(1,0)[start:end].transpose(1,0)
@@ -185,7 +189,7 @@ class DemoPredictor(nn.Module):
             logit3, loss3 = compute_loss(W_user3, y, ob, self.cum_len[1], self.cum_len[2])
             logit4, loss4 = compute_loss(W_user4, y, ob, self.cum_len[2], self.cum_len[3])
             logit5, loss5 = compute_loss(W_user5, y, ob, self.cum_len[3], self.cum_len[4])
-            loss = (loss1 + loss2 + loss3 + loss4 + loss5)
+            loss = (loss1 + loss2 + 2*loss3 + 2*loss4 + 3*loss5)
             logit = np.concatenate((logit1, logit2, logit3, logit4, logit5), axis=1)
         elif self.learning_form == 'structured':
             W_user = self.W(user_rep)

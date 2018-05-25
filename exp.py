@@ -22,7 +22,7 @@ from dataset import Dictionary
 from model import DemoPredictor
 
 class Experiment:
-    def __init__(self, args, logger, label_size):
+    def __init__(self, args, logger):
         self.args = args
         self.logger = logger
         Dict = Dictionary(
@@ -31,35 +31,52 @@ class Experiment:
         self.attr_len = Dict.attr_len
         self.all_the_poss = reduce(mul, Dict.attr_len, 1)
         self.logger.info("Experiment initializing . . . ")
-        self.model = DemoPredictor(
-                        logger, self.dict.__len__(),
-                        args.item_emb_size, label_size, Dict.attr_len, args.num_negs,
-                        args.user_rep,
+        
+        # build models
+        model1 = DemoPredictor(logger, self.dict.__len__(),
+                        args.item_emb_size, Dict.attr_len, args.num_negs, args.user_rep,
                         args.rnn_type, args.rnn_size, args.rnn_layer, args.rnn_drop,
-                        args.learning_form
-                        ).cuda()
-        self.select_optimizer()
-        self.criterion = nn.NLLLoss()
-        self.logger.info(self.model)
+                        args.learning_form, tasks = [0]).cuda()
+        model2 = DemoPredictor(logger, self.dict.__len__(),
+                        args.item_emb_size, Dict.attr_len, args.num_negs, args.user_rep,
+                        args.rnn_type, args.rnn_size, args.rnn_layer, args.rnn_drop,
+                        args.learning_form, tasks = [1]).cuda()
+        model3 = DemoPredictor(logger, self.dict.__len__(),
+                        args.item_emb_size, Dict.attr_len, args.num_negs, args.user_rep,
+                        args.rnn_type, args.rnn_size, args.rnn_layer, args.rnn_drop,
+                        args.learning_form, tasks = [2]).cuda()
+        model4 = DemoPredictor(logger, self.dict.__len__(),
+                        args.item_emb_size, Dict.attr_len, args.num_negs, args.user_rep,
+                        args.rnn_type, args.rnn_size, args.rnn_layer, args.rnn_drop,
+                        args.learning_form, tasks = [3]).cuda()
+        model5 = DemoPredictor(logger, self.dict.__len__(),
+                        args.item_emb_size, Dict.attr_len, args.num_negs, args.user_rep,
+                        args.rnn_type, args.rnn_size, args.rnn_layer, args.rnn_drop,
+                        args.learning_form, tasks = [4]).cuda()
+        self.model = [model1, model2, model3, model4, model5]
+        for model in self.model:
+            self.select_optimizer(model)
+            self.logger.info(model)
 
-    def select_optimizer(self):
-        parameters = filter(lambda p: p.requires_grad, self.model.parameters())
+    def select_optimizer(self, model):
+        parameters = filter(lambda p: p.requires_grad, model.parameters())
         if(self.args.opt == 'Adam'):
-            self.optimizer =  optim.Adam(parameters, lr=self.args.learning_rate,
+            model.optimizer =  optim.Adam(parameters, lr=self.args.learning_rate,
                                         weight_decay=self.args.weight_decay)
         elif(self.args.opt == 'RMSprop'):
-            self.optimizer =  optim.RMSprop(parameters, lr=self.args.learning_rate,
+            model.optimizer =  optim.RMSprop(parameters, lr=self.args.learning_rate,
                                         weight_decay=self.args.weight_decay,
                                         momentum=self.args.momentum)
         elif(self.args.opt == 'SGD'):
-            self.optimizer =  optim.SGD(parameters, lr=self.args.learning_rate, 
+            model.optimizer =  optim.SGD(parameters, lr=self.args.learning_rate, 
                                         momentum=self.args.momentum)
         elif(self.args.opt == 'Adagrad'):
-            self.optimizer =  optim.Adagrad(parameters, lr=self.args.learning_rate)
+            model.optimizer =  optim.Adagrad(parameters, lr=self.args.learning_rate)
         elif(self.args.opt == 'Adadelta'):
-            self.optimizer =  optim.Adadelta(parameters, lr=self.args.learning_rate)
+            model.optimizer =  optim.Adadelta(parameters, lr=self.args.learning_rate)
 
-    def run_epoch(self, data_loader, trainable=False):
+    def run_epoch(self, model_idx, data_loader, trainable=False):
+        model = self.model[model_idx]
         num_samples = data_loader.dataset.__len__()
         num_steps = (num_samples // self.args.batch_size) + 1
         self.num_steps = num_steps
@@ -68,9 +85,9 @@ class Experiment:
 
         # change the mode
         if trainable:
-            self.model.train()
+            model.train()
         else:
-            self.model.eval()
+            model.eval()
 
         # step training or evaluation with given batch size
         loss_sum = 0
@@ -79,17 +96,19 @@ class Experiment:
         self.yp_counter = Counter()
         self.yt_counter = Counter()
         self.hm_acc = self.em = self.num_users = 0
+        self.attr_em = [0, 0, 0, 0, 0]
+        self.attr_cnt = [0, 0, 0, 0, 0]
         for i, batch in enumerate(data_loader):
             self.step = i+1
             t0 = time.clock()
             if trainable:
-                self.optimizer.zero_grad()
-            logit, loss = self.model(batch)
+                model.optimizer.zero_grad()
+            logit, loss = model(batch)
 
             if trainable:
                 loss.backward()
-                nn.utils.clip_grad_norm(self.model.parameters(), self.args.grad_max_norm)
-                self.optimizer.step()
+                nn.utils.clip_grad_norm(model.parameters(), self.args.grad_max_norm)
+                model.optimizer.step()
             ls = loss.data.cpu().numpy()
             loss_sum += ls[0]
             self.accumulate_score(logit, batch[2].numpy(), batch[3].numpy())
@@ -99,6 +118,12 @@ class Experiment:
                 t1 = time.clock()
                 self.logger.info("<step {}> Loss={:5.3f}, time:{:5.2f}, Hamming={:2.3f}, P:{:2.3f}, R:{:2.3f}, F1:{:2.3f}"
                                     .format(i+1, ls[0], t1-t0, hm, p, r, f1))
+                self.logger.info("Accuracy - gender:{:3.1f}, marital:{:3.1f}, age:{:3.1f}, income:{:3.1f}, edu:{:3.1f}"
+                                    .format(100*self.attr_em[0]/self.attr_cnt[0],
+                                            100*self.attr_em[1]/self.attr_cnt[1],
+                                            100*self.attr_em[2]/self.attr_cnt[2],
+                                            100*self.attr_em[3]/self.attr_cnt[3],
+                                            100*self.attr_em[4]/self.attr_cnt[4]))
         hm, p, r, f1 = self.get_score()
         return loss_sum / num_steps, hm, p, r, f1
 
@@ -118,9 +143,14 @@ class Experiment:
             for a_idx, al in enumerate(self.attr_len):
                 end = start + al
                 if not sum(ob[start:end]):
-                    pred.append(np.argmax(logit[b_idx][start:end] - th[a_idx]) + start)
-                    #pred.append(np.argmax(logit[b_idx][start:end], 0) + start)
-                    true.append(sum(y_numbering[b_idx][start:end]))
+                    #p = np.argmax(logit[b_idx][start:end] - th[a_idx]) + start
+                    p = np.argmax(logit[b_idx][start:end], 0) + start
+                    t = sum(y_numbering[b_idx][start:end])
+                    if p == t:
+                        self.attr_em[a_idx] += 1
+                    self.attr_cnt[a_idx] += 1
+                    pred.append(p)
+                    true.append(t)
                 start += al
             if pred and true:
                 y_pred.append(pred)
@@ -150,11 +180,11 @@ class Experiment:
         for y, cnt in self.y_counter.items():
             wP += self.y_em_counter[y] / cnt
         ## for debugging
-        if self.step == self.num_steps:
-            for i in range(0, 18):
-                print('{} : y-pred / y-true : {}, {}'
-                        .format(i, self.yp_counter[i], self.yt_counter[i]))
-            print(len(self.y_em_counter), len(self.y_counter), wP / len(self.y_em_counter))
+        #if self.step == self.num_steps:
+        #    for i in range(0, 18):
+        #        print('{} : y-pred / y-true : {}, {}'
+        #                .format(i, self.yp_counter[i], self.yt_counter[i]))
+        #    print(len(self.y_em_counter), len(self.y_counter), wP / len(self.y_em_counter))
         ##
         wP /= len(self.y_counter)
         wR = self.em / self.num_users

@@ -13,9 +13,6 @@ from dataset import DemoAttrDataset, batchify, SortedBatchSampler
 from exp import Experiment
 from mf2demo import *
 
-global label_size
-label_size = 18
-
 def get_args():
     parser = argparse.ArgumentParser()
 
@@ -61,7 +58,7 @@ def get_args():
     # debugging and analysis
     parser.add_argument('--save-log', type=int, default=0)
     parser.add_argument('--save-output', type=int, default=0)
-    parser.add_argument('--print-per-step', type=int, default=100)
+    parser.add_argument('--print-per-step', type=int, default=300)
     parser.add_argument('--rand-search', type=int, default=0)
 
     # regularization
@@ -108,25 +105,24 @@ def run_experiment(args, logger):
     #                shuffle=False,
     #                num_workers=2)
 
-    exp = Experiment(args, logger, label_size)
+    exp = Experiment(args, logger)
 
     max_loss = max_f1 = max_p = max_r = stop_cnt = 0
     for epoch in range(args.max_epoch):
-        logger.info("++++++++++ epoch: {} ++++++++++".format(epoch+1))
-        tr_t0 = time.clock()
-        tr_loss, tr_hm, tr_p, tr_r, tr_f1 = exp.run_epoch(train_loader,
-                                                        trainable=True)
-        tr_t1 = time.clock()
+        for i in range(len(exp.model)):
+            logger.info("++++++++++ epoch: {} ++++++++++".format(epoch+1))
+            tr_t0 = time.clock()
+            tr_loss, tr_hm, tr_p, tr_r, tr_f1 = exp.run_epoch(i, train_loader, trainable=True)
+            tr_t1 = time.clock()
 
-        va_t0 = time.clock()
-        va_loss, va_hm, va_p, va_r, va_f1 = exp.run_epoch(valid_loader,
-                                                        trainable=False)
-        va_t1 = time.clock()
+            va_t0 = time.clock()
+            va_loss, va_hm, va_p, va_r, va_f1 = exp.run_epoch(i, valid_loader, trainable=False)
+            va_t1 = time.clock()
 
-        logger.info("[Training] Loss={:5.3f}, time:{:5.2}, Hamming={:4.3f}, P:{:4.3f}, R:{:4.3f}, F1:{:4.3f}"
-                            .format(tr_loss, tr_t1-tr_t0, tr_hm, tr_p, tr_r, tr_f1))
-        logger.info("[Validation] Loss={:5.3f}, time:{:5.2f}, Hamming={:4.3f}, P:{:4.3f}, R:{:4.3f}, F1:{:4.3f}"
-                            .format(va_loss, va_t1-va_t0, va_hm, va_p, va_r, va_f1))
+            logger.info("[Training] Loss={:5.3f}, time:{:5.2}, Hamming={:4.3f}, P:{:4.3f}, R:{:4.3f}, F1:{:4.3f}"
+                                .format(tr_loss, tr_t1-tr_t0, tr_hm, tr_p, tr_r, tr_f1))
+            logger.info("[Validation] Loss={:5.3f}, time:{:5.2f}, Hamming={:4.3f}, P:{:4.3f}, R:{:4.3f}, F1:{:4.3f}"
+                                .format(va_loss, va_t1-va_t0, va_hm, va_p, va_r, va_f1))
         # early stop
         if max_f1 < va_f1:
             max_f1 = va_f1
