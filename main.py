@@ -20,13 +20,13 @@ def get_args():
     parser = argparse.ArgumentParser()
 
     # data
-    parser.add_argument('--data-path', type=str, default="./data/preprd/",
+    parser.add_argument('--data-path', type=str, default="./data/preprd/ordered/",
                         help="")
     parser.add_argument('--rand-seed', type=int, default=1)
     parser.add_argument('--data-shuffle', type=int, default=1)
 
     # task settings
-    parser.add_argument('--partial-ratio', type=str, default='10')
+    parser.add_argument('--partial-ratio', type=str, default='90')
     parser.add_argument('--task', type=str, default='partial',
                         help="[partial, new_user]")
 
@@ -41,7 +41,7 @@ def get_args():
 
     # training parameters
     parser.add_argument('--batch-size', type=int, default=60)
-    parser.add_argument('--learning-rate', type=float, default=0.1)
+    parser.add_argument('--learning-rate', type=float, default=0.05)
     parser.add_argument('--user_emb_dim', type=int, default=100)
     parser.add_argument('--num_negs', type=int, default=4)
     parser.add_argument('--max-epoch', type=int, default=20)

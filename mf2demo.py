@@ -60,11 +60,13 @@ class MF2Demo(nn.Module):
         super(MF2Demo, self).__init__()
         self.mlp_layer = nn.Sequential(nn.Linear(args.user_emb_dim, 64),
                                     nn.Sigmoid(),
+                                    nn.Linear(64, 64),
+                                    nn.Sigmoid(),
                                     nn.Linear(64, 32),
                                     nn.Sigmoid(),
                                     nn.Linear(32, 18))
         self.dict = Dictionary(
-                        args.data_path+'dict.json')
+                        args.data_path+'dict_'+args.task+args.partial_ratio+'.json')
         self.num_negs = args.num_negs
         # generate all the possible structured vectors
         all_attr = []
@@ -101,7 +103,7 @@ class MF2Demo(nn.Module):
         # check if target idx included in sample
         for i, sample in enumerate(sample_idx):
             while target_idx[i] in sample:
-                sample[np.where(sample== target_idx[i])] = randint(0,384)
+                sample[np.where(sample== target_idx[i])] = randint(0,383)
 
         sample_idx = Variable(torch.from_numpy(sample_idx.astype(int))).cuda()
 
@@ -195,11 +197,16 @@ class Solver():
 
             # eval(pred)
             if idx % 200 == 0:
-                print('loss : %.4f | hamming loss %.4f'%\
-                        (np.asarray(loss_sum).mean(), hm_loss))
+                message = 'loss : %.4f | hamming loss %.4f'%\
+                                        (np.asarray(loss_sum).mean(), hm_loss)
+                message += ' | P: %.4f | R: %.4f | F1: %.4f'%(wp, wr, wf1)
+                print(message)
+
         hm_loss, wp, wr, wf1 = self.get_score()
-        print('%s epoch %d summary loss : %.4f | hamming loss %.4f'%(state, epoch,
-                np.asarray(loss_sum).mean(), np.asarray(hm_sum).mean()))
+        message = '\n %s epoch %d summary loss : %.4f | hamming loss %.4f'%\
+                        (state, epoch, np.asarray(loss_sum).mean(), hm_loss)
+        message += ' | P: %.4f | R: %.4f | F1: %.4f \n'%(wp, wr, wf1)
+        print(message)
 
     def accumulate_score(self, logit, onehot, observed):
         y_numbering = np.asarray([[j if l else 0 for j, l in enumerate(oh)] \
@@ -268,7 +275,8 @@ def run_mfdm_exp(args):
     train_loader = DataLoader(
                     dataset = MFDataset(args,
                     args.data_path+'train_'+args.task+args.partial_ratio+'.json'),
-                    batch_size=args.batch_size)
+                    batch_size=args.batch_size,
+                    shuffle=False)
 
     valid_loader = DataLoader(
                     dataset = MFDataset(args,
