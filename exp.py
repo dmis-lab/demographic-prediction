@@ -32,31 +32,24 @@ class Experiment:
         self.all_the_poss = reduce(mul, Dict.attr_len, 1)
         self.logger.info("Experiment initializing . . . ")
         
+        #attr_len = np.asarray(self.attr_len)[tasks]
         # build models
-        model1 = DemoPredictor(logger, self.dict.__len__(),
-                        args.item_emb_size, Dict.attr_len, args.num_negs, args.user_rep,
-                        args.rnn_type, args.rnn_size, args.rnn_layer, args.rnn_drop,
-                        args.learning_form, tasks = [0]).cuda()
-        model2 = DemoPredictor(logger, self.dict.__len__(),
-                        args.item_emb_size, Dict.attr_len, args.num_negs, args.user_rep,
-                        args.rnn_type, args.rnn_size, args.rnn_layer, args.rnn_drop,
-                        args.learning_form, tasks = [1]).cuda()
-        model3 = DemoPredictor(logger, self.dict.__len__(),
-                        args.item_emb_size, Dict.attr_len, args.num_negs, args.user_rep,
-                        args.rnn_type, args.rnn_size, args.rnn_layer, args.rnn_drop,
-                        args.learning_form, tasks = [2]).cuda()
-        model4 = DemoPredictor(logger, self.dict.__len__(),
-                        args.item_emb_size, Dict.attr_len, args.num_negs, args.user_rep,
-                        args.rnn_type, args.rnn_size, args.rnn_layer, args.rnn_drop,
-                        args.learning_form, tasks = [3]).cuda()
-        model5 = DemoPredictor(logger, self.dict.__len__(),
-                        args.item_emb_size, Dict.attr_len, args.num_negs, args.user_rep,
-                        args.rnn_type, args.rnn_size, args.rnn_layer, args.rnn_drop,
-                        args.learning_form, tasks = [4]).cuda()
-        self.model = [model1, model2, model3, model4, model5]
+        self.model = []
+        def build_models(tasks_list):
+            for tasks in tasks_list:
+                self.model.append(DemoPredictor(logger, self.dict.__len__(),
+                            args.item_emb_size, Dict.attr_len, args.num_negs, args.user_rep,
+                            args.rnn_type, args.rnn_size, args.rnn_layer, args.rnn_drop,
+                            args.learning_form, args.partial_training, tasks = tasks).cuda())
+        self.task_sepa = [[0,1,2,3,4]]
+        #models = [[0],[1],[2],[3],[4]]
+        #models = [[0]]
+        build_models(self.task_sepa)
         for model in self.model:
             self.select_optimizer(model)
             self.logger.info(model)
+        self.tasks = [0, 1, 2, 3, 4]
+        #self.tasks = [0]
 
     def select_optimizer(self, model):
         parameters = filter(lambda p: p.requires_grad, model.parameters())
@@ -75,49 +68,67 @@ class Experiment:
         elif(self.args.opt == 'Adadelta'):
             model.optimizer =  optim.Adadelta(parameters, lr=self.args.learning_rate)
 
-    def run_epoch(self, model_idx, data_loader, trainable=False):
-        model = self.model[model_idx]
+    def run_epoch(self, data_loader, trainable=False):
         num_samples = data_loader.dataset.__len__()
         num_steps = (num_samples // self.args.batch_size) + 1
         self.num_steps = num_steps
         self.logger.info("== {} mode : {} steps for {} samples =="
             .format(data_loader.dataset.data_type, num_steps, num_samples))
 
-        # change the mode
-        if trainable:
-            model.train()
-        else:
-            model.eval()
 
-        # step training or evaluation with given batch size
-        loss_sum = 0
         self.y_counter = Counter()
         self.y_em_counter = Counter()
         self.yp_counter = Counter()
         self.yt_counter = Counter()
         self.hm_acc = self.em = self.num_users = 0
         self.attr_em = [0, 0, 0, 0, 0]
-        self.attr_cnt = [0, 0, 0, 0, 0]
+        self.attr_cnt = [0 if i in self.tasks else 1 for i in range(len(self.attr_len))]
+        
+        loss_sum = 0
         for i, batch in enumerate(data_loader):
-            self.step = i+1
             t0 = time.clock()
-            if trainable:
-                model.optimizer.zero_grad()
-            logit, loss = model(batch)
-
-            if trainable:
-                loss.backward()
-                nn.utils.clip_grad_norm(model.parameters(), self.args.grad_max_norm)
-                model.optimizer.step()
-            ls = loss.data.cpu().numpy()
-            loss_sum += ls[0]
-            self.accumulate_score(logit, batch[2].numpy(), batch[3].numpy())
+            self.step = i+1
+            f_logit = None
+            for t_idx, _ in enumerate(self.task_sepa):
+                model = self.model[t_idx]
+                
+                # change the mode
+                if trainable:
+                    model.train()
+                    model.optimizer.zero_grad()
+                else:
+                    model.eval()
+                
+                start = 0
+                delete_idx = []
+                for a_idx, al in enumerate(self.attr_len):
+                    end = start + al
+                    if not a_idx in model.tasks:
+                        delete_idx.extend(list(range(start, end)))
+                    start += al
+                onehot = np.delete(batch[2], delete_idx, 1)
+                observed = np.delete(batch[3], delete_idx, 1)
+                
+                logit, loss = model((batch[0], batch[1], onehot, observed))
+                if trainable:
+                    loss.backward()
+                    nn.utils.clip_grad_norm(model.parameters(), self.args.grad_max_norm)
+                    model.optimizer.step()
+                ls = loss.data.cpu().numpy()
+                loss_sum += ls[0]
+                
+                if f_logit is None:
+                    f_logit = logit
+                else:
+                    f_logit = np.concatenate((f_logit, logit), 1)
+            
+            self.accumulate_score(f_logit, batch[2], batch[3], self.tasks)
 
             if (i+1) % self.args.print_per_step == 0:
                 hm, p, r, f1 = self.get_score()
                 t1 = time.clock()
                 self.logger.info("<step {}> Loss={:5.3f}, time:{:5.2f}, Hamming={:2.3f}, P:{:2.3f}, R:{:2.3f}, F1:{:2.3f}"
-                                    .format(i+1, ls[0], t1-t0, hm, p, r, f1))
+                                    .format(self.step, loss_sum/(self.step), t1-t0, hm, p, r, f1))
                 self.logger.info("Accuracy - gender:{:3.1f}, marital:{:3.1f}, age:{:3.1f}, income:{:3.1f}, edu:{:3.1f}"
                                     .format(100*self.attr_em[0]/self.attr_cnt[0],
                                             100*self.attr_em[1]/self.attr_cnt[1],
@@ -127,11 +138,13 @@ class Experiment:
         hm, p, r, f1 = self.get_score()
         return loss_sum / num_steps, hm, p, r, f1
 
-    def accumulate_score(self, logit, onehot, observed):
+    def accumulate_score(self, logit, onehot, observed, tasks):
+        if not self.args.partial_eval: observed = np.zeros_like(observed)
+
+        y_pred, y_true = [],[]
         y_numbering = np.asarray([[j if l else 0 for j, l in enumerate(oh)] \
                                 for i, oh in enumerate(onehot)])
-        
-        y_pred, y_true = [],[]
+        # adjust the thresholds for model predictions
         th = [[0.62, 0.38],\
                 [0.55, 0.45],\
                 [0.14, 0.36, 0.37, 0.17],\
@@ -141,6 +154,7 @@ class Experiment:
             pred, true = [],[]
             start = 0
             for a_idx, al in enumerate(self.attr_len):
+                if not a_idx in tasks: continue
                 end = start + al
                 if not sum(ob[start:end]):
                     #p = np.argmax(logit[b_idx][start:end] - th[a_idx]) + start
@@ -151,11 +165,15 @@ class Experiment:
                     self.attr_cnt[a_idx] += 1
                     pred.append(p)
                     true.append(t)
+                #else:
+                #    p = sum(y_numbering[b_idx][start:end])
+                #    t = sum(y_numbering[b_idx][start:end])
+                #    pred.append(p)
+                #    true.append(t)
                 start += al
             if pred and true:
                 y_pred.append(pred)
                 y_true.append(true)
-
         self.num_users += len(y_true)
         
         for yp in y_pred:
