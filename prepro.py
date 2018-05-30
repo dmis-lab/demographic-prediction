@@ -142,7 +142,8 @@ def build_dataset(args, logger, data):
 
     # shuffle data indices
     total_idx = list(range(len(data[0])))
-    random.shuffle(total_idx)
+    if args.task == 'new_user':
+        random.shuffle(total_idx)
 
     spl_ratio = np.asarray(args.data_split.split(',')).astype(float)
     
