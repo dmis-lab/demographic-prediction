@@ -144,12 +144,7 @@ class Experiment:
         y_pred, y_true = [],[]
         y_numbering = np.asarray([[j if l else 0 for j, l in enumerate(oh)] \
                                 for i, oh in enumerate(onehot)])
-        # adjust the thresholds for model predictions
-        th = [[0.62, 0.38],\
-                [0.55, 0.45],\
-                [0.14, 0.36, 0.37, 0.17],\
-                [0.22, 0.41, 0.22, 0.19],\
-                [0.12, 0.13, 0.39, 0.26, 0.16, 0.12]]
+        
         for b_idx, ob in enumerate(observed):
             pred, true = [],[]
             start = 0

@@ -53,11 +53,15 @@ class DemoAttrDataset(Dataset):
             data['observed'] += aug_data['observed']
         
         history, label, observed = [],[],[]
-        for i, ob in enumerate(data['observed']):
-            if sum(ob):
-                history.append(data['history'][i])
-                label.append(data['label'][i])
-                observed.append(data['observed'][i])
+        #for i, ob in enumerate(data['observed']):
+        #    if sum(ob):
+        #        history.append(data['history'][i])
+        #        label.append(data['label'][i])
+        #        observed.append(data['observed'][i])
+        history = data['history']
+        label = data['label']
+        observed = data['observed']
+        ##
         
         shuffled_idx = list(range(len(history)))
         random.shuffle(shuffled_idx)
@@ -69,7 +73,6 @@ class DemoAttrDataset(Dataset):
         self.label = self.label_all
         self.observed = self.observed_all
 
-        #self.under_sample()
         logger.info("{} {} samples are loaded".format(self.__len__(), self.data_type))
     
     def shuffle_data(self):
@@ -89,7 +92,6 @@ class DemoAttrDataset(Dataset):
         #for l in self.label:
         #    self.y_counter[str(l)] += 1
         #    self.sampled_counter[str(l)] = 0
-
         y_numbering = np.asarray([[j if l else 0 for j, l in enumerate(oh)] \
                                 for i, oh in enumerate(self.label_all)])
         y_true = []
@@ -100,9 +102,12 @@ class DemoAttrDataset(Dataset):
             start = 0
             for a_idx, al in enumerate([2,2,4,4,6]):
                 end = start + al
-                if not sum(ob[start:end]):
-                    t = sum(y_numbering[b_idx][start:end])
-                    true.append(t)
+                #if not sum(ob[start:end]):
+                #   t = sum(y_numbering[b_idx][start:end])
+                #   true.append(t)
+                t = sum(y_numbering[b_idx][start:end])
+                true.append(t)
+                if not sum(ob[start:end]): pass
                 else:
                     kn = sum(y_numbering[b_idx][start:end])
                     known.append(kn)
@@ -114,19 +119,21 @@ class DemoAttrDataset(Dataset):
             sampled_counter[str(l)] = 0
         for l in y_known:
             kn_counter[str(l)] += 1
-
+        
+        #print(y_counter)
+        #sys.exit()
         history = []
         label = []
         observed = []
         for l_idx, l in enumerate(y_true):
-            if y_counter[str(l)] < 20 and sampled_counter[str(l)] < 20:
-                for _ in range(20 - sampled_counter[str(l)]):
+            if y_counter[str(l)] < 50 and sampled_counter[str(l)] < 50:
+                for _ in range(50 - sampled_counter[str(l)]):
                     history.append(self.history_all[l_idx])
                     label.append(self.label_all[l_idx])
                     observed.append(self.observed_all[l_idx])
                     sampled_counter[str(l)] += 1
-            if (y_counter[str(l)] > 100 and sampled_counter[str(l)] < 100)\
-                or (y_counter[str(l)] <= 20 and y_counter[str(l)] >= 20):
+            if (y_counter[str(l)] > 300 and sampled_counter[str(l)] < 300)\
+                or (y_counter[str(l)] <= 300 and y_counter[str(l)] >= 50):
                 history.append(self.history_all[l_idx])
                 label.append(self.label_all[l_idx])
                 observed.append(self.observed_all[l_idx])
