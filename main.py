@@ -44,7 +44,7 @@ def get_args():
     parser.add_argument('--learning-rate', type=float, default=0.1)
     parser.add_argument('--user_emb_dim', type=int, default=100)
     parser.add_argument('--num_negs', type=int, default=2)
-    parser.add_argument('--max-epoch', type=int, default=1000)
+    parser.add_argument('--max-epoch', type=int, default=20000)
     parser.add_argument('--grad-max-norm', type=float, default=5)
 
     # model's parameters
@@ -130,18 +130,24 @@ def run_experiment(args, logger):
         if max_f1 < va_f1:
             max_f1 = va_f1
             max_loss = va_loss
+            max_hm = va_hm
             max_p = va_p
             max_r = va_r
             stop_cnt = 0
         else: stop_cnt += 1
-        if stop_cnt >= 15 and args.early_stop:
-            return (epoch+1), max_loss, max_f1, max_p, max_r
-    return (epoch+1), max_loss, max_f1, max_p, max_r
+        if stop_cnt >= 10 and args.early_stop:
+            return (epoch+1), max_loss, max_hm, max_f1, max_p, max_r
+    return (epoch+1), max_loss, max_hm, max_f1, max_p, max_r
 
 
 def main():
     # get all arguments
     args = get_args()
+
+    if args.task == 'partial':
+        args.partial_training = args.partial_eval = 1
+    elif args.task == 'new_user':
+        args.partial_training = args.partial_eval = 0
 
     #run_mfdm_exp(args)
 
@@ -166,7 +172,10 @@ def main():
     logger.info(args)
 
     ep, loss, hm, f1, p, r = run_experiment(args, logger)
-
+    logger.info("[Final score - ep:{}] Loss={:5.3f}, Hamming={:4.3f}, P:{:4.3f}, R:{:4.3f}, F1:{:4.3f}"
+                        .format(ep, loss, hm, p, r, f1))
 
 if __name__ == '__main__':
     main()
+
+

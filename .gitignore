@@ -1,5 +1,6 @@
 data
 data/*
+save/log/*
 openrec/
 __pycache__
 **/__pycache__
