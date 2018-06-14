@@ -9,7 +9,7 @@ import torch
 from torch.utils.data import DataLoader
 import uuid
 
-from dataset import DemoAttrDataset, batchify, SortedBatchSampler
+from dataset_rh import DemoAttrDataset, batchify, SortedBatchSampler
 from exp import Experiment
 from mf2demo import *
 
@@ -24,7 +24,7 @@ def get_args():
     parser.add_argument('--data-sampling', type=int, default=1)
 
     # task settings
-    parser.add_argument('--partial-ratio', type=str, default='50')
+    parser.add_argument('--partial-ratio', type=str, default='5 0')
     parser.add_argument('--partial-training', type=int, default=0)
     parser.add_argument('--partial-eval', type=int, default=0)
     parser.add_argument('--task', type=str, default='partial',
@@ -102,7 +102,7 @@ def run_experiment(args, logger):
                             'train',
                             args.data_path+'train_'+args.task+args.partial_ratio+'.json',
                         )
-        if args.data_sampling: train_dataset.sample_data()
+        if args.data_sampling: train_dataset.sample_data('known')
         train_sampler = SortedBatchSampler(train_dataset.lengths(),
                                         args.batch_size,
                                         shuffle=True)
@@ -113,7 +113,7 @@ def run_experiment(args, logger):
                         sampler=train_sampler,
                         num_workers=2,
                         collate_fn=batchify)
-        
+
         tr_t0 = time.clock()
         tr_loss, tr_hm, tr_p, tr_r, tr_f1 = exp.run_epoch(train_loader, trainable=True)
         tr_t1 = time.clock()
@@ -177,5 +177,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-

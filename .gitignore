@@ -8,3 +8,9 @@ __pycache__
 *.log
 *.npy
 *.ipynb
+main_rh.py
+dataset_rh.py
+test.py
+y_counter
+unk_counter
+kn_counter

@@ -15,7 +15,7 @@ from torch.utils.data.sampler import Sampler
 class Dictionary(object):
     NULL = '<NULL>'
     UNK = '<UNK>'
-    
+
     def __init__(self, data_path):
         load_file = json.load(open(data_path))
         self.dict = load_file['dict']
@@ -51,7 +51,7 @@ class DemoAttrDataset(Dataset):
             data['history'] += aug_data['history']
             data['label'] += aug_data['label']
             data['observed'] += aug_data['observed']
-        
+
         history, label, observed = [],[],[]
         #for i, ob in enumerate(data['observed']):
         #    if sum(ob):
@@ -62,19 +62,21 @@ class DemoAttrDataset(Dataset):
         label = data['label']
         observed = data['observed']
         ##
-        
+
         shuffled_idx = list(range(len(history)))
         random.shuffle(shuffled_idx)
         self.history_all = np.asarray(history)[shuffled_idx].tolist()
+        # label ex : [0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1]
         self.label_all = np.asarray(label)[shuffled_idx].tolist()
+        # observed ex : [1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
         self.observed_all = np.asarray(observed)[shuffled_idx].tolist()
-        
+
         self.history = self.history_all
         self.label = self.label_all
         self.observed = self.observed_all
 
         logger.info("{} {} samples are loaded".format(self.__len__(), self.data_type))
-    
+
     def shuffle_data(self):
         shuffled_idx = list(range(len(self.history_all)))
         random.shuffle(shuffled_idx)
@@ -82,63 +84,92 @@ class DemoAttrDataset(Dataset):
         self.label_all = np.asarray(self.label_all)[shuffled_idx].tolist()
         self.observed_all = np.asarray(self.observed_all)[shuffled_idx].tolist()
 
-    def sample_data(self):
+    def sample_data(self, sample_type):
         self.shuffle_data()
 
+        # y_counter : true full label / sampled_counter : sampled y
+        # kn_counter : known label
         y_counter = Counter()
         sampled_counter = Counter()
         kn_counter = Counter()
-        
+        unk_counter = Counter()
+
         #for l in self.label:
         #    self.y_counter[str(l)] += 1
         #    self.sampled_counter[str(l)] = 0
+        # y_numbering ex : [ 0  1  2  0  0  5  0  0  0  0  0 11  0  0 14  0  0  0]
         y_numbering = np.asarray([[j if l else 0 for j, l in enumerate(oh)] \
                                 for i, oh in enumerate(self.label_all)])
+
         y_true = []
         y_known = []
+        y_unknown = []
         for b_idx, ob in enumerate(self.observed_all):
             true = []
             known = []
+            unknown = []
             start = 0
             for a_idx, al in enumerate([2,2,4,4,6]):
                 end = start + al
-                #if not sum(ob[start:end]):
-                #   t = sum(y_numbering[b_idx][start:end])
-                #   true.append(t)
-                t = sum(y_numbering[b_idx][start:end])
-                true.append(t)
-                if not sum(ob[start:end]): pass
+                # only use unknown (to be prediction)
+                if not sum(ob[start:end]):
+                   t = sum(y_numbering[b_idx][start:end])
+                   true.append(t)
+                #t = sum(y_numbering[b_idx][start:end])
+                #true.append(t)
+
+                if not sum(ob[start:end]):
+                    unk = sum(y_numbering[b_idx][start:end])
+                    unknown.append(unk)
                 else:
                     kn = sum(y_numbering[b_idx][start:end])
                     known.append(kn)
                 start += al
+
+            # true - all true label / known - observed label
             y_true.append(true)
             y_known.append(known)
+            y_unknown.append(unknown)
+
         for l in y_true:
             y_counter[str(l)] += 1
             sampled_counter[str(l)] = 0
         for l in y_known:
             kn_counter[str(l)] += 1
-        
-        #print(y_counter)
+        for l in y_unknown:
+            unk_counter[str(l)] += 1
+
+        #torch.save(y_counter, 'y_counter')
+        #torch.save(kn_counter, 'kn_counter')
+        #torch.save(unk_counter, 'unk_counter')
         #sys.exit()
         history = []
         label = []
         observed = []
+
+        if sample_type=='unknown':
+            counter_ = y_counter
+        else:
+            counter_ = kn_counter
+
         for l_idx, l in enumerate(y_true):
-            if y_counter[str(l)] < 50 and sampled_counter[str(l)] < 50:
+            # over sampling
+            if counter_[str(l)] < 50 and sampled_counter[str(l)] < 50:
+                # TODO sample from the pool not the same sample
                 for _ in range(50 - sampled_counter[str(l)]):
                     history.append(self.history_all[l_idx])
                     label.append(self.label_all[l_idx])
                     observed.append(self.observed_all[l_idx])
                     sampled_counter[str(l)] += 1
-            if (y_counter[str(l)] > 300 and sampled_counter[str(l)] < 300)\
-                or (y_counter[str(l)] <= 300 and y_counter[str(l)] >= 50):
+            # under sampling
+            if (counter_[str(l)] > 500 and sampled_counter[str(l)] < 500)\
+                or (counter_[str(l)] <= 500 and counter_[str(l)] >= 50):
                 history.append(self.history_all[l_idx])
                 label.append(self.label_all[l_idx])
                 observed.append(self.observed_all[l_idx])
                 sampled_counter[str(l)] += 1
             """
+
             if self.y_counter[str(l)] < 200 and self.sampled_counter[str(l)] < 200:
                 for _ in range(200 - self.sampled_counter[str(l)]):
                     history.append(self.history_all[l_idx])
@@ -166,7 +197,7 @@ class DemoAttrDataset(Dataset):
             self.history = self.history[r:]
             self.label = self.label[r:]
             self.observed = self.observed[r:]
-        
+
         female = male = 0
         for l_idx, l in enumerate(self.label):
             if l[0]: female += 1
@@ -181,7 +212,7 @@ class DemoAttrDataset(Dataset):
             f = m = 0
             for l_idx, l in enumerate(self.label):
                 if f >= male and l[0]: continue
-                else: 
+                else:
                     label1.append(l)
                     history1.append(self.history[l_idx])
                     observed1.append(self.observed[l_idx])
