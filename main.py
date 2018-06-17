@@ -9,7 +9,8 @@ import torch
 from torch.utils.data import DataLoader
 import uuid
 
-from dataset_rh import DemoAttrDataset, batchify, SortedBatchSampler
+#from dataset_rh import DemoAttrDataset, batchify, SortedBatchSampler
+from dataset import DemoAttrDataset, batchify, SortedBatchSampler
 from exp import Experiment
 from mf2demo import *
 
@@ -17,14 +18,14 @@ def get_args():
     parser = argparse.ArgumentParser()
 
     # data
-    parser.add_argument('--data-path', type=str, default="./data/preprd/ordered/",
+    parser.add_argument('--data-path', type=str, default="./data/preprd/",
                         help="")
     parser.add_argument('--rand-seed', type=int, default=1)
     parser.add_argument('--data-shuffle', type=int, default=1)
     parser.add_argument('--data-sampling', type=int, default=1)
 
     # task settings
-    parser.add_argument('--partial-ratio', type=str, default='5 0')
+    parser.add_argument('--partial-ratio', type=str, default='50')
     parser.add_argument('--partial-training', type=int, default=0)
     parser.add_argument('--partial-eval', type=int, default=0)
     parser.add_argument('--task', type=str, default='partial',

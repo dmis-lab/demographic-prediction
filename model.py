@@ -140,9 +140,9 @@ class DemoPredictor(nn.Module):
                 W_user = WU.transpose(1,0)[start:end].transpose(1,0)
                 y = full_label.transpose(1,0)[start:end].transpose(1,0)
                 ob = observed.transpose(1,0)[start:end].transpose(1,0)
-                if self.partial_training:
+                if not self.partial_training:
                     ob = Variable(torch.ones(ob.size())).float().cuda()
-
+                
                 W_compact = W_user * ob
                 c_idx = [i for i, s in enumerate(W_compact.sum(1).data.cpu().numpy()) if s]
                 if c_idx:

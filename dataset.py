@@ -154,16 +154,16 @@ class DemoAttrDataset(Dataset):
 
         for l_idx, l in enumerate(y_true):
             # over sampling
-            if counter_[str(l)] < 50 and sampled_counter[str(l)] < 50:
+            if counter_[str(l)] < 20 and sampled_counter[str(l)] < 20:
                 # TODO sample from the pool not the same sample
-                for _ in range(50 - sampled_counter[str(l)]):
+                for _ in range(20 - sampled_counter[str(l)]):
                     history.append(self.history_all[l_idx])
                     label.append(self.label_all[l_idx])
                     observed.append(self.observed_all[l_idx])
                     sampled_counter[str(l)] += 1
             # under sampling
-            if (counter_[str(l)] > 500 and sampled_counter[str(l)] < 500)\
-                or (counter_[str(l)] <= 500 and counter_[str(l)] >= 50):
+            if (counter_[str(l)] > 100 and sampled_counter[str(l)] < 100)\
+                or (counter_[str(l)] <= 100 and counter_[str(l)] >= 20):
                 history.append(self.history_all[l_idx])
                 label.append(self.label_all[l_idx])
                 observed.append(self.observed_all[l_idx])
