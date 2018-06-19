@@ -9,10 +9,8 @@ import torch
 from torch.utils.data import DataLoader
 import uuid
 
-#from dataset_rh import DemoAttrDataset, batchify, SortedBatchSampler
-from dataset import DemoAttrDataset, batchify, SortedBatchSampler
-from exp import Experiment
-from mf2demo import *
+from dataset_rh import DemoAttrDataset, batchify, SortedBatchSampler
+from exp_rh import Experiment
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -23,13 +21,15 @@ def get_args():
     parser.add_argument('--rand-seed', type=int, default=1)
     parser.add_argument('--data-shuffle', type=int, default=1)
     parser.add_argument('--data-sampling', type=int, default=1)
+    parser.add_argument('--sample_type', type=str, default='full')
 
     # task settings
     parser.add_argument('--partial-ratio', type=str, default='50')
     parser.add_argument('--partial-training', type=int, default=1)
     parser.add_argument('--partial-eval', type=int, default=1)
-    parser.add_argument('--task', type=str, default='partial',
+    parser.add_argument('--task_type', type=str, default='partial',
                         help="[partial, new_user]")
+    parser.add_argument('--tasks', type=list, default=[0,1,2,3,4])
 
     # optimizations
     parser.add_argument('--opt', type=str, default='SGD',
@@ -42,7 +42,7 @@ def get_args():
 
     # training parameters
     parser.add_argument('--batch-size', type=int, default=60)
-    parser.add_argument('--learning-rate', type=float, default=1.)
+    parser.add_argument('--learning-rate', type=float, default=0.05)
     parser.add_argument('--user_emb_dim', type=int, default=100)
     parser.add_argument('--num_negs', type=int, default=2)
     parser.add_argument('--max-epoch', type=int, default=20000)
@@ -67,7 +67,7 @@ def get_args():
 
     # regularization
     parser.add_argument('--early-stop', type=str, default='f1')
-    parser.add_argument('--weight-decay', type=float, default=0.1)
+    parser.add_argument('--weight-decay', type=float, default=0.01)
 
     args = parser.parse_args()
     return args
@@ -80,8 +80,8 @@ def run_experiment(args, logger):
                     dataset=DemoAttrDataset(
                         logger,
                         'valid',
-                        args.data_path+'valid_'+args.task+args.partial_ratio+'.json',
-                        args.data_path+'test_'+args.task+args.partial_ratio+'.json',
+                        args.data_path+'valid_'+args.task_type+args.partial_ratio+'.json',
+                        args.data_path+'test_'+args.task_type+args.partial_ratio+'.json',
                     ),
                     batch_size=args.batch_size,
                     shuffle=False,
@@ -98,29 +98,38 @@ def run_experiment(args, logger):
     max_loss = max_f1 = max_p = max_r = stop_cnt = 0
     for epoch in range(args.max_epoch):
         logger.info("++++++++++ epoch: {} ++++++++++".format(epoch+1))
-        train_dataset = DemoAttrDataset(
-                            logger,
-                            'train',
-                            args.data_path+'train_'+args.task+args.partial_ratio+'.json',
-                        )
-        if args.data_sampling: train_dataset.sample_data('known')
-        train_sampler = SortedBatchSampler(train_dataset.lengths(),
-                                        args.batch_size,
-                                        shuffle=True)
-        train_loader = DataLoader(
-                        dataset=train_dataset,
-                        batch_size=args.batch_size,
-                        shuffle=False,
-                        sampler=train_sampler,
-                        num_workers=2,
-                        collate_fn=batchify)
+        #sample_attr = epoch % 5
+        sample_attr = [0,1,2,3,4]
+        if len(args.tasks)==1:
+            # if task is for one attr sample with that attr
+            sample_attr = args.tasks[0]
+        
+        print(sample_attr)
+
+        if True:
+            train_dataset = DemoAttrDataset(
+                                logger,
+                                'train',
+                                args.data_path+'train_'+args.task_type+args.partial_ratio+'.json',
+                            )
+            if args.data_sampling: train_dataset.sample_data(sample_attr)
+            train_sampler = SortedBatchSampler(train_dataset.lengths(),
+                                            args.batch_size,
+                                            shuffle=True)
+            train_loader = DataLoader(
+                            dataset=train_dataset,
+                            batch_size=args.batch_size,
+                            shuffle=False,
+                            sampler=train_sampler,
+                            num_workers=2,
+                            collate_fn=batchify)
 
         tr_t0 = time.clock()
-        tr_loss, tr_hm, tr_p, tr_r, tr_f1 = exp.run_epoch(train_loader, trainable=True)
+        tr_loss, tr_hm, tr_p, tr_r, tr_f1 = exp.run_epoch(train_loader, sample_attr, trainable=True)
         tr_t1 = time.clock()
 
         va_t0 = time.clock()
-        va_loss, va_hm, va_p, va_r, va_f1 = exp.run_epoch(valid_loader, trainable=False)
+        va_loss, va_hm, va_p, va_r, va_f1 = exp.run_epoch(valid_loader, sample_attr, trainable=False)
         va_t1 = time.clock()
 
         logger.info("[Training] Loss={:5.3f}, time:{:5.2}, Hamming={:4.3f}, P:{:4.3f}, R:{:4.3f}, F1:{:4.3f}"
@@ -136,7 +145,7 @@ def run_experiment(args, logger):
             max_r = va_r
             stop_cnt = 0
         else: stop_cnt += 1
-        if stop_cnt >= 10 and args.early_stop:
+        if stop_cnt >= 50 and args.early_stop:
             return (epoch+1), max_loss, max_hm, max_f1, max_p, max_r
     return (epoch+1), max_loss, max_hm, max_f1, max_p, max_r
 
@@ -145,9 +154,9 @@ def main():
     # get all arguments
     args = get_args()
 
-    if args.task == 'partial':
+    if args.task_type == 'partial':
         args.partial_training = args.partial_eval = 1
-    elif args.task == 'new_user':
+    elif args.task_type == 'new_user':
         args.partial_training = args.partial_eval = 0
 
     #run_mfdm_exp(args)

@@ -98,7 +98,7 @@ class DemoPredictor(nn.Module):
         neg_samples = []
         for sample in sample_idx:
             neg_samples.append(self.all_possible[sample].unsqueeze(0))
-        
+
         return torch.cat(neg_samples, 0)
 
     def forward(self, batch):
@@ -108,13 +108,13 @@ class DemoPredictor(nn.Module):
         y = Variable(torch.from_numpy(y)).cuda().float()
         x_len = torch.sum(x_mask.long(), 1)
         ob = Variable(torch.from_numpy(ob)).cuda().float()
-        
+
         # represent items
         embed = self.item_emb(x)
-        
+
         # get negative samples
         #neg_samples = self.draw_sample(x.size(0), y)
-        
+
         # represent users
         if self.user_rep == 'Average':
             user_rep = []
@@ -127,7 +127,7 @@ class DemoPredictor(nn.Module):
             x_idx = bg + x_len -1
             user_rep = rnn_out.contiguous().view(-1, rnn_out.size(-1))\
                             .index_select(dim=0, index=x_idx)
-        
+
         # mask to unknown attributes in training
         if self.learning_form == 'seperated':
             for i, W in enumerate(self.W_all):
@@ -135,11 +135,13 @@ class DemoPredictor(nn.Module):
                     W_user = W(user_rep)
                 else:
                     W_user = torch.cat((W_user, W(user_rep)), 1)
-            
+
             def compute_loss(WU, full_label, observed, start, end, weight=None):
                 W_user = WU.transpose(1,0)[start:end].transpose(1,0)
                 y = full_label.transpose(1,0)[start:end].transpose(1,0)
                 ob = observed.transpose(1,0)[start:end].transpose(1,0)
+                
+                # change all observe for new_user
                 if not self.partial_training:
                     ob = Variable(torch.ones(ob.size())).float().cuda()
                 
@@ -148,7 +150,7 @@ class DemoPredictor(nn.Module):
                 if c_idx:
                     c_idx = Variable(torch.from_numpy(np.asarray(c_idx))).long().cuda()
                     W_compact = torch.index_select(W_compact, 0, c_idx)
-                    y_c = torch.index_select(y, 0, c_idx) 
+                    y_c = torch.index_select(y, 0, c_idx)
                     all_possible = [[1 if i==j else 0 for j in range(end-start)] \
                                     for i in range(end-start)]
                     all_possible = Variable(torch.from_numpy(np.asarray(
@@ -164,13 +166,13 @@ class DemoPredictor(nn.Module):
                     else:
                         loss = -torch.sum(obj.log())
                     batch_size = y_c.size(0)
-                else: 
+                else:
                     loss = 0
                     batch_size = 1
                 logit = W_user.data.cpu().numpy()
                 logit = F.softmax(W_user).data.cpu().numpy()
                 return logit, loss / batch_size
-            
+
             loss = 0
             for i, t in enumerate(self.tasks):
                 #if t == 0:
@@ -186,7 +188,7 @@ class DemoPredictor(nn.Module):
         elif self.learning_form == 'structured':
             W_user = self.W(user_rep)
             W_compact = W_user * ob
-            
+
             # we use negative sampling for efficient optimization
             neg_logs = []
             for idx, w_c in enumerate(W_compact):
@@ -198,5 +200,3 @@ class DemoPredictor(nn.Module):
             loss = -torch.sum(pos_loss+neg_loss)/W_compact.size(0)
             logit = W_user.data.cpu().numpy()
         return logit, loss
-
-
