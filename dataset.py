@@ -1,6 +1,7 @@
 from collections import Counter
 import copy
 import json
+from random import randint
 import numpy as np
 import random
 import re
@@ -11,6 +12,10 @@ from torch.autograd import Variable
 from torch.utils.data import Dataset
 from torch.utils.data.sampler import Sampler
 
+# set random seeds
+np.random.seed(1)
+random.seed(1)
+torch.manual_seed(1)
 
 class Dictionary(object):
     NULL = '<NULL>'
@@ -64,27 +69,172 @@ class DemoAttrDataset(Dataset):
         ##
 
         shuffled_idx = list(range(len(history)))
-        random.shuffle(shuffled_idx)
+        #random.shuffle(shuffled_idx)
         self.history_all = np.asarray(history)[shuffled_idx].tolist()
         # label ex : [0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1]
         self.label_all = np.asarray(label)[shuffled_idx].tolist()
         # observed ex : [1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
         self.observed_all = np.asarray(observed)[shuffled_idx].tolist()
+        if any([True if t in self.data_type else False for t in ['val', 'test']]):
+            self.observed_all = np.invert(np.asarray(self.observed_all).astype(bool)).astype(int).tolist()
 
-        self.history = self.history_all
-        self.label = self.label_all
-        self.observed = self.observed_all
+        self.reset()
 
         logger.info("{} {} samples are loaded".format(self.__len__(), self.data_type))
 
     def shuffle_data(self):
-        shuffled_idx = list(range(len(self.history_all)))
+        history_all = copy.deepcopy(self.history_all)
+        label_all = copy.deepcopy(self.label_all)
+        observed_all = copy.deepcopy(self.observed_all)
+        
+        shuffled_idx = list(range(len(history_all)))
+        
         random.shuffle(shuffled_idx)
-        self.history_all = np.asarray(self.history_all)[shuffled_idx].tolist()
-        self.label_all = np.asarray(self.label_all)[shuffled_idx].tolist()
-        self.observed_all = np.asarray(self.observed_all)[shuffled_idx].tolist()
+        
+        idx_zero = shuffled_idx.index(0)
+        self.history_all = np.asarray(history_all)[shuffled_idx].tolist()
+        self.label_all = np.asarray(label_all)[shuffled_idx].tolist()
+        self.observed_all = np.asarray(observed_all)[shuffled_idx].tolist()
 
-    def sample_data(self, sample_type):
+        for i in range(len(shuffled_idx)):
+            j = shuffled_idx.index(i)
+            if history_all[i] != self.history_all[j]:
+                print(history_all[i])
+                print(self.history_all[j])
+            if label_all[i] != self.label_all[j]:
+                print(label_all[i])
+                print(self.label_all[j])
+            if observed_all[i] != self.observed_all[j]:
+                print(observed_all[i])
+                print(self.observed_all[j])
+
+    def reset(self):
+        self.history = copy.deepcopy(self.history_all)
+        self.label = copy.deepcopy(self.label_all)
+        self.observed = copy.deepcopy(self.observed_all)
+
+    def sample_subset(self, num_data):
+        history_all = copy.deepcopy(self.history_all)
+        label_all = copy.deepcopy(self.label_all)
+        observed_all = copy.deepcopy(self.observed_all)
+        self.history, self.label, self.observed = [],[],[]
+        for i in range(num_data):
+            self.history.append(history_all[i])
+            self.label.append(label_all[i])
+            self.observed.append(observed_all[i])
+
+    def sample_data_cls(self):
+        #self.shuffle_data()
+
+        # y_counter : true full label / sampled_counter : sampled y
+        # kn_counter : known label
+        y_counter = Counter()
+        sampled_counter = Counter()
+        kn_counter = Counter()
+        unk_counter = Counter()
+
+        self.cls_idx_dict = dict()
+        
+        # y_numbering ex : [ 0  1  2  0  0  5  0  0  0  0  0 11  0  0 14  0  0  0]
+        y_numbering = copy.deepcopy(
+                        np.asarray([[j if l else 0 for j, l in enumerate(oh)] \
+                        for i, oh in enumerate(self.label_all)]))
+
+        y_true = []
+        for t_idx, t in enumerate(y_numbering):
+            true = []
+            start = 0
+            for a_idx, al in enumerate([2,2,4,4,6]):
+                end = start + al
+                if sum(self.observed_all[t_idx][start:end]):
+                    t = sum(y_numbering[t_idx][start:end])
+                    true.append(t)
+                start += al
+            # add data index to class index pool
+            if str(true) in self.cls_idx_dict.keys():
+                self.cls_idx_dict[str(true)].append(t_idx)
+            else:
+                self.cls_idx_dict[str(true)] = [t_idx]
+            # true - all true label
+
+            y_true.append(true)
+
+    def pick_batch_data(self, num_batches, batch_size):
+        history, label, observed = [],[],[]
+        history_all = copy.deepcopy(self.history_all)
+        label_all = copy.deepcopy(self.label_all)
+        observed_all = copy.deepcopy(self.observed_all)
+        
+        #sample from the pool. every class included in each batch
+        for _ in range(num_batches):
+            num_cls = np.zeros(18).astype(int)
+            for _ in range(batch_size):
+                while True:
+                    c = random.choice(list(self.cls_idx_dict.keys()))
+                    if c != '[]': break
+                
+                cls = c.replace('[','').replace(']','').split(', ')
+                for cl in cls:
+                    num_cls[int(cl)] += 1
+                # sample from the pool with replacement
+                s_idx = random.choice(self.cls_idx_dict[c])
+
+                history.append(history_all[s_idx])
+                label.append(label_all[s_idx])
+                observed.append(observed_all[s_idx])
+
+            # calculate the max num of classes for each att
+            start = end = 0
+            maxnum_cls = []
+            for n in [2,2,4,4,6]:
+                end = start + n
+                mn = max(num_cls[start:end])
+                for _ in range(n):
+                    maxnum_cls.append(mn)
+                start = end
+            
+            # make the num of classes same to avoid skewed prediction
+            maxnum_cls = np.asarray(maxnum_cls)
+            
+            while True:
+                under = num_cls < maxnum_cls
+                candi = [i for i, u in enumerate(under) if u]
+                
+                while True:
+                    c = random.choice(list(self.cls_idx_dict.keys()))
+                    if c != '[]': break
+
+                cls = np.asarray(c.replace('[','').replace(']','').split(', ')).astype(int)
+                intersect = np.intersect1d(cls, candi)
+                difference = np.setdiff1d(cls, candi)
+                s_idx = random.choice(self.cls_idx_dict[c])
+                
+                
+                # threshold
+                if not intersect.shape[0]: continue
+                
+                for cl in intersect:
+                    num_cls[int(cl)] += 1
+                
+                history.append(history_all[s_idx])
+                label.append(label_all[s_idx])
+                new_ob = copy.deepcopy(np.asarray(observed_all[s_idx]))
+
+                start = end = 0
+                for n in [2,2,4,4,6]:
+                    end = start + n
+                    for d in difference:
+                        if d in list(range(start, end)):
+                            new_ob[start:end] = 0
+                    start = end
+                observed.append(new_ob.tolist())
+                if sum(np.equal(num_cls, maxnum_cls).astype(int)) == 18: break
+
+        self.history = history
+        self.label = label
+        self.observed = observed
+
+    def sample_data_attr(self, sample_attr):
         self.shuffle_data()
 
         # y_counter : true full label / sampled_counter : sampled y
@@ -104,6 +254,7 @@ class DemoAttrDataset(Dataset):
         y_true = []
         y_known = []
         y_unknown = []
+        attr_idx_dict = dict()
         for b_idx, ob in enumerate(self.observed_all):
             true = []
             known = []
@@ -112,17 +263,21 @@ class DemoAttrDataset(Dataset):
             for a_idx, al in enumerate([2,2,4,4,6]):
                 end = start + al
                 # only use unknown (to be prediction)
-                if not sum(ob[start:end]):
-                   t = sum(y_numbering[b_idx][start:end])
-                   true.append(t)
-                #t = sum(y_numbering[b_idx][start:end])
-                #true.append(t)
+                #if not sum(ob[start:end]):
+                  # t = sum(y_numbering[b_idx][start:end])
+                   #true.append(t)
+                t = sum(y_numbering[b_idx][start:end])
+                true.append(t)
 
                 if not sum(ob[start:end]):
                     unk = sum(y_numbering[b_idx][start:end])
                     unknown.append(unk)
                 else:
                     kn = sum(y_numbering[b_idx][start:end])
+                    if kn in attr_idx_dict.keys():
+                        attr_idx_dict[kn].append(b_idx)
+                    else:
+                        attr_idx_dict[kn] = [b_idx]
                     known.append(kn)
                 start += al
 
@@ -131,58 +286,62 @@ class DemoAttrDataset(Dataset):
             y_known.append(known)
             y_unknown.append(unknown)
 
-        for l in y_true:
+        l_idx_dict = dict()
+        total_l = set([str(l) for l in y_true])
+        for l in total_l:
+            l_idx_dict[l] = []
+
+        for l_idx, l in enumerate(y_true):
             y_counter[str(l)] += 1
             sampled_counter[str(l)] = 0
+            l_idx_dict[str(l)].append(l_idx)
+
         for l in y_known:
             kn_counter[str(l)] += 1
         for l in y_unknown:
             unk_counter[str(l)] += 1
 
-        #torch.save(y_counter, 'y_counter')
-        #torch.save(kn_counter, 'kn_counter')
-        #torch.save(unk_counter, 'unk_counter')
+        #torch.save(y_counter, 'y_counter_10')
+        #torch.save(kn_counter, 'kn_counter_10')
+        #torch.save(unk_counter, 'unk_counter_10')
         #sys.exit()
+        def attr_sample_size(attr_idx_dict, att):
+            start = 0
+            for idx, n_cls in enumerate([2,2,4,4,6]):
+                if idx<att:
+                    start += n_cls
+                else:
+                    end = start+n_cls
+                    t_cls = [c for c in range(start,end)]
+                    t_num = [len(attr_idx_dict[c]) for c in range(start, end)]
+                    #sample_size = int(np.median(np.asarray(t_num)))
+                    sample_size = 57693//len(t_cls)
+                    return t_cls, sample_size
+        '''
+        for i in range(18):
+            print(i, len(attr_idx_dict[i]))
+        for i in range(5):
+            t_cls, sample_size = attr_sample_size(attr_idx_dict, i)
+            print(t_cls, sample_size)
+        sys.exit()
+        '''
+        t_cls, sample_size = attr_sample_size(attr_idx_dict, sample_attr)
+
         history = []
         label = []
         observed = []
-
-        if sample_type=='unknown':
-            counter_ = y_counter
-        else:
-            counter_ = kn_counter
-
-        for l_idx, l in enumerate(y_true):
-            # over sampling
-            if counter_[str(l)] < 20 and sampled_counter[str(l)] < 20:
-                # TODO sample from the pool not the same sample
-                for _ in range(20 - sampled_counter[str(l)]):
-                    history.append(self.history_all[l_idx])
-                    label.append(self.label_all[l_idx])
-                    observed.append(self.observed_all[l_idx])
-                    sampled_counter[str(l)] += 1
-            # under sampling
-            if (counter_[str(l)] > 100 and sampled_counter[str(l)] < 100)\
-                or (counter_[str(l)] <= 100 and counter_[str(l)] >= 20):
+        #sample_size = 5000
+        for c in t_cls:
+            # sample from the pool with replacement
+            idx_pool = attr_idx_dict[c]
+            # same size sampling
+            for _ in range(sample_size - sampled_counter[c]):
+                l_idx = idx_pool[randint(0, len(idx_pool)-1)]
                 history.append(self.history_all[l_idx])
                 label.append(self.label_all[l_idx])
                 observed.append(self.observed_all[l_idx])
-                sampled_counter[str(l)] += 1
-            """
+                sampled_counter[c] += 1
 
-            if self.y_counter[str(l)] < 200 and self.sampled_counter[str(l)] < 200:
-                for _ in range(200 - self.sampled_counter[str(l)]):
-                    history.append(self.history_all[l_idx])
-                    label.append(self.label_all[l_idx])
-                    observed.append(self.observed_all[l_idx])
-                    self.sampled_counter[str(l)] += 1
-            if (self.y_counter[str(l)] > 500 and self.sampled_counter[str(l)] < 500)\
-                or (self.y_counter[str(l)] <= 500 and self.y_counter[str(l)] >= 200):
-                history.append(self.history_all[l_idx])
-                label.append(self.label_all[l_idx])
-                observed.append(self.observed_all[l_idx])
-                self.sampled_counter[str(l)] += 1
-            """
         self.history = history
         self.label = label
         self.observed = observed
@@ -231,7 +390,6 @@ class DemoAttrDataset(Dataset):
     def lengths(self):
         return [len(h) for h in self.history]
 
-
 def batchify(batch):
     history, label, observed = [],[],[]
     for ex in batch:
@@ -239,7 +397,7 @@ def batchify(batch):
         label.append(ex[1])
         observed.append(ex[2])
 
-    # padding
+# padding
     maxlen_history = max([len(h) for h in history])
     x = torch.LongTensor(len(history), maxlen_history).zero_()
     x_mask = torch.ByteTensor(len(history), maxlen_history).zero_()

@@ -5,6 +5,7 @@ openrec/
 __pycache__
 **/__pycache__
 *.swp
+*.swo
 *.log
 *.npy
 *.ipynb
