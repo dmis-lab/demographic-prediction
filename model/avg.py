@@ -25,7 +25,6 @@ class AvgPooling(nn.Module):
 		self.optimizer = None
 
 		label_size = sum([al for i, al in enumerate(attr_len)])
-
 		self.item_emb = nn.Embedding(len_dict, item_emb_size, padding_idx=0)
 
 		# choose a learning method
@@ -47,28 +46,26 @@ class AvgPooling(nn.Module):
 		x_len = torch.sum(x_mask.long(), 1)
 		y = torch.from_numpy(y).cuda().float()
 		ob = torch.from_numpy(ob).cuda().float()
-		
 		# change all observe for new_user
 		if not self.partial_training:
 			ob = torch.ones(ob.size()).float().cuda()
 		
 		# get negative samples
-		neg_samples = draw_neg_sample(x.size(0), y, ob)
-
+		neg_samples = draw_neg_sample(x.size(0), self.attr_len, y, ob)
 		# represent items
 		embed = self.item_emb(x)
-
 		# represent users
 		user_rep = []
 		for i, emb in enumerate(embed):
 			user_rep.append(torch.sum(emb, 0)/x_len[i].float())
 		user_rep = torch.stack(user_rep, 0)
-		
+		# add a non-linear
+		#user_rep = F.relu(user_rep)
+
 		# masking to distinguish between known and unknown attributes
 		W_user = self.W(user_rep)
 		W_compact = W_user * ob
 		y_c = y * ob
-
 		if self.use_negsample:
 			# using negative sampling for efficient optimization
 			neg_logs = []

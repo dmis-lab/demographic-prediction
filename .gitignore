@@ -1,5 +1,8 @@
 data
-data/*
+data/raw/beiren
+data/raw/ocb
+data/preprd/beiren
+data/preprd/ocb
 save/*
 openrec/
 __pycache__
@@ -9,4 +12,5 @@ __pycache__
 *.log
 *.npy
 *.ipynb
-test.py
+*.torch
+

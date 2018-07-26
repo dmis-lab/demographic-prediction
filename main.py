@@ -16,6 +16,8 @@ def get_args():
 	parser = argparse.ArgumentParser()
 
 # data
+	parser.add_argument('--dataset', type=str, default='ocb',
+						help="[beiren, ocb]")
 	parser.add_argument('--data-path', type=str, default="./data/preprd/",
 						help="")
 	parser.add_argument('--rand-seed', type=int, default=1)
@@ -29,7 +31,7 @@ def get_args():
 	parser.add_argument('--partial-eval', type=int, default=1)
 	parser.add_argument('--task-type', type=str, default='partial',
 						help="[partial, new_user]")
-	parser.add_argument('--tasks', type=list, default=[0,1,2,3,4])
+	parser.add_argument('--tasks', type=int, nargs='+')
 
 # optimizations
 	parser.add_argument('--opt', type=str, default='Adam',
@@ -80,7 +82,8 @@ def get_args():
 
 def run_experiment(args, logger):
 
-# generate a data loader for validation set
+	# generate a data loader for validation set
+	"""
 	valid_loader = DataLoader(
 					dataset=DemoAttrDataset(
 						logger,
@@ -92,17 +95,22 @@ def run_experiment(args, logger):
 					shuffle=False,
 					num_workers=2,
 					collate_fn=batchify)
-#test_loader = DataLoader(
-#                dataset=DemoAttrDataset(args, logger, 'test'),
-#                batch_size=args.batch_size,
-#                shuffle=False,
-#                num_workers=2)
+	"""
+	test_loader = DataLoader(
+	             dataset=DemoAttrDataset(logger, args.task_type, 'test',
+								args.data_path+args.dataset+'/test.json'),
+	             batch_size=args.batch_size,
+	             shuffle=False,
+	             num_workers=2,
+				 collate_fn=batchify)
 
 	exp = Experiment(args, logger)
 	train_dataset = DemoAttrDataset(
 						logger,
+						args.task_type,
 						'train',
-						args.data_path+'train_'+args.task_type+args.partial_ratio+'.json',
+						#args.data_path+'train_'+args.task_type+args.partial_ratio+'.json',
+						args.data_path+args.dataset+'/train.json',
 					)
 	train_sampler = SortedBatchSampler(train_dataset.lengths(),
 									args.batch_size,
@@ -142,7 +150,7 @@ def run_experiment(args, logger):
 
 		va_t0 = time.clock()
 		va_loss, va_hm, \
-		va_macP, va_macR, va_macF1, va_wP, va_wR, va_wF1 = exp.run_epoch(epoch, valid_loader, sample_attr,
+		va_macP, va_macR, va_macF1, va_wP, va_wR, va_wF1 = exp.run_epoch(epoch, test_loader, sample_attr,
 														args.data_sampling, trainable=False)
 		va_t1 = time.clock()
 		logger.info("### Training # Loss={:5.3f}, time:{:5.2}, Hamming={:2.3f}"
@@ -186,7 +194,7 @@ def run_experiment(args, logger):
 
 
 def main():
-# get all arguments
+	# get all arguments
 	args = get_args()
 
 	if args.task_type == 'partial':
@@ -195,6 +203,12 @@ def main():
 		args.partial_training = args.partial_eval = 0
 	if args.model_type == 'TAN' and args.attention_layer == 2:
 		args.learning_form = 'seperated'
+
+	if args.tasks == None and args.dataset == 'beiren':
+		args.tasks = [0,1,2,3,4]
+	elif args.tasks == None and args.dataset == 'ocb':
+		args.tasks = [0,1,2]
+
 #if args.model_type == 'TAN' and args.attention_layer == 2:
 #args.learning_form = 'seperated'
 

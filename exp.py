@@ -31,8 +31,10 @@ class Experiment:
 		self.args = args
 		self.tasks = args.tasks
 		self.logger = logger
+		#Dict = Dictionary(
+		#		args.data_path+'dict_'+args.task_type+args.partial_ratio+'.json')
 		Dict = Dictionary(
-				args.data_path+'dict_'+args.task_type+args.partial_ratio+'.json')
+				args.data_path+args.dataset+'/dict.json')
 		self.dict = Dict.dict
 		self.attr_len = Dict.attr_len
 		self.all_the_poss = reduce(mul, Dict.attr_len, 1)
@@ -93,7 +95,7 @@ class Experiment:
 
 		self.ytc_counter = []
 		self.ypc_counter = []
-		for i in range(18):
+		for i in range(sum([al for al in self.attr_len])):
 			self.ypc_counter.append(0)
 			self.ytc_counter.append(0)
 
@@ -101,18 +103,16 @@ class Experiment:
 		self.yp_counter = Counter()
 		self.yt_counter = Counter()
 		self.hm_acc = self.num_users = 0
-		self.attr_em = [0, 0, 0, 0, 0]
+		self.attr_em = np.zeros(len(self.attr_len)).astype(int)
 		self.attr_cnt = [0 if i in self.tasks else 1 for i in range(len(self.attr_len))]
 		loss_sum = 0
 		for i, batch in enumerate(data_loader):
 			t0 = time.clock()
 			self.step = i+1
 			self.step_count += 1
-
 			f_logit = None
 			for t_idx, _ in enumerate([self.tasks]):
 				model = self.model[t_idx]
-				
 				if self.args.model_type == 'POP': break
 
 				# change the mode
@@ -131,11 +131,9 @@ class Experiment:
 					start += al
 				onehot = np.delete(batch[2], delete_idx, 1)
 				observed = np.delete(batch[3], delete_idx, 1)
-
 				logit, loss = model((epoch, i+1),
 									(batch[0], batch[1], onehot, observed),
 									sample_type, sampling)
-
 				#if self.step_count % self.args.vis_per_step == 0 and not trainable:
 				#	self.summary(loss, self.step_count, False)
 
@@ -182,16 +180,21 @@ class Experiment:
 							.format(macP, macR, macF1))
 				self.logger.info("weighted - wP:{:2.3f}, wR:{:2.3f}, wF1:{:2.3f}"
 							.format(wP, wR, wF1))
-				self.logger.info("Accuracy - gender:{:3.1f}, marital:{:3.1f}, age:{:3.1f}, income:{:3.1f}, edu:{:3.1f} \n"
+				#self.logger.info("Accuracy - gender:{:3.1f}, marital:{:3.1f}, age:{:3.1f}, income:{:3.1f}, edu:{:3.1f} \n"
+				self.logger.info("Accuracy - gender:{:3.1f}, age:{:3.1f}, marital:{:3.1f} \n"
 									.format(100*self.attr_em[0]/self.attr_cnt[0],
 											100*self.attr_em[1]/self.attr_cnt[1],
-											100*self.attr_em[2]/self.attr_cnt[2],
-											100*self.attr_em[3]/self.attr_cnt[3],
-											100*self.attr_em[4]/self.attr_cnt[4]))
+											100*self.attr_em[2]/self.attr_cnt[2]))
+											#100*self.attr_em[3]/self.attr_cnt[3],
+											#100*self.attr_em[4]/self.attr_cnt[4]))
 		print('pred :', self.ypc_counter)
 		print('true :', self.ytc_counter)
-		for name, param in model.named_parameters():
-			print(name, torch.norm(param))
+		self.logger.info("Accuracy - gender:{:3.1f}, age:{:3.1f}, marital:{:3.1f} \n"
+							.format(100*self.attr_em[0]/self.attr_cnt[0],
+									100*self.attr_em[1]/self.attr_cnt[1],
+									100*self.attr_em[2]/self.attr_cnt[2]))
+		#for name, param in model.named_parameters():
+		#	print(name, torch.norm(param))
 		hm, macP, macR, macF1, wP, wR, wF1 = self.get_score()
 		#if not trainable:
 		#	self.summary(loss, self.step_count, True)
@@ -230,7 +233,7 @@ class Experiment:
 			if pred and true:
 				y_pred.append(pred)
 				y_true.append(true)
-
+		
 		self.num_users += len(y_true)
 
 		##

@@ -10,7 +10,7 @@ def combinate(list1, list2):
 			out.append(l1+l2)
 	return out
 
-def draw_neg_sample(batch_size, label, observed):
+def draw_neg_sample(batch_size, attr_len, label, observed):
 	# weight [batch, all_posible]
 	# find label index
 	val_label = label*observed
@@ -21,16 +21,16 @@ def draw_neg_sample(batch_size, label, observed):
 
 		for attr_y in val_y:
 			start = end = 0
-			for n in [2,2,4,4,6]:
+			for n in attr_len:
 				end = start + n
 				if start <= attr_y < end:
 					candidate = [i for i in range(start,end) if i!=attr_y]
 					neg = random.sample(candidate, 1)
 					neg_idx.append(neg)
 				start += n
-		neg_sample = torch.zeros(18)
+		neg_sample = torch.zeros(label.size(1))
 		for idx in neg_idx:
 			neg_sample[idx] = 1
 		neg_samples.append(neg_sample)
-	return neg_samples
+	return torch.stack(neg_samples)
 
