@@ -132,8 +132,8 @@ def run_experiment(args, logger):
 		if len(args.tasks)==1:
 			# if task is for one attr sample with that attr
 			sample_attr = args.tasks[0]
-		
-		if epoch % 2 == 0 and args.data_sampling: 
+
+		if epoch % 2 == 0 and args.data_sampling:
 			train_dataset.sample_data_cls()
 			train_dataset.pick_batch_data(args.num_batches, args.batch_size)
 		if epoch % 2 == 1 and args.data_sampling:
@@ -165,7 +165,7 @@ def run_experiment(args, logger):
 					.format(va_macP, va_macR, va_macF1))
 		logger.info("% weighted - wP:{:2.3f}, wR:{:2.3f}, wF1:{:2.3f} \n"
 					.format(va_wP, va_wR, va_wF1))
-		
+
 		# early stop
 		if max_score < va_wF1:
 			max_epoch = epoch+1
@@ -179,12 +179,12 @@ def run_experiment(args, logger):
 			max_wR = va_wR
 			max_wF1 = va_wF1
 			stop_cnt = 0
-		elif max_score == va_wF1:
+		else:
 			# lr decay
 			exp.adjust_lr()
 			stop_cnt += 1
 		if args.model_type == 'POP': break
-		if stop_cnt >= 5 and args.early_stop:
+		if stop_cnt >= 50 and args.early_stop:
 			return max_epoch, max_loss, max_hm, \
 					max_macP, max_macR, max_macF1, \
 					max_wP, max_wR, max_wF1

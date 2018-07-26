@@ -47,14 +47,13 @@ class Experiment:
 				for tasks in tasks_list:
 					self.model.append(AvgPooling(logger, self.dict.__len__(),
 								args.item_emb_size, Dict.attr_len, args.num_negs,
-								args.partial_training, args.use_negsample).cuda())
+								args.partial_training, args.use_negsample, tasks=tasks).cuda())
 			else:
 				for tasks in tasks_list:
 					self.model.append(TANDemoPredictor(logger, self.dict.__len__(), args.item_emb_size,
 									args.attention_layer, Dict.attr_len, args.learning_form,
-									args.data_sampling, args.num_negs,
-									args.partial_training, tasks = tasks).cuda())
-		
+									args.use_negsample, args.partial_training, tasks = tasks).cuda())
+
 		build_models([self.tasks])
 		for model in self.model:
 			self.select_optimizer(model)
@@ -145,17 +144,17 @@ class Experiment:
 					#	if name != 'item_emb.weight':
 					#		wd_l2 += torch.norm(param)
 					#loss += wd_lambda * wd_l2
-					
+
 					loss.backward()
 					nn.utils.clip_grad_norm_(model.parameters(), self.args.grad_max_norm)
-					
+
 					# diminishing the impact of W matrix on model prediction
 					#for name, param in model.named_parameters():
 					#	if name != 'item_emb.weight':
 					#		param.grad *= 1/20
-					
+
 					model.optimizer.step()
-					
+
 					# diminishing the impact of W matrix on model prediction
 					#for name, param in model.named_parameters():
 					#	if name != 'item_emb.weight':
@@ -233,7 +232,7 @@ class Experiment:
 			if pred and true:
 				y_pred.append(pred)
 				y_true.append(true)
-		
+
 		self.num_users += len(y_true)
 
 		##

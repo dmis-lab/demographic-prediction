@@ -13,10 +13,11 @@ torch.set_printoptions(threshold=99999)
 
 class AvgPooling(nn.Module):
 	def __init__(self, logger, len_dict,
-				item_emb_size, attr_len, num_negs, 
-				partial_training, use_negsample):
+				item_emb_size, attr_len, num_negs,
+				partial_training, use_negsample, tasks=[0,1,2]):
 		super(AvgPooling, self).__init__()
-		self.tasks = [0,1,2,3,4]
+		self.tasks = tasks
+		self.cum_len = np.concatenate(([0], np.cumsum(np.asarray(attr_len)[tasks])))
 		self.logger = logger
 		self.attr_len = attr_len
 		self.use_negsample = use_negsample
@@ -49,9 +50,7 @@ class AvgPooling(nn.Module):
 		# change all observe for new_user
 		if not self.partial_training:
 			ob = torch.ones(ob.size()).float().cuda()
-		
-		# get negative samples
-		neg_samples = draw_neg_sample(x.size(0), self.attr_len, y, ob)
+
 		# represent items
 		embed = self.item_emb(x)
 		# represent users
@@ -66,45 +65,57 @@ class AvgPooling(nn.Module):
 		W_user = self.W(user_rep)
 		W_compact = W_user * ob
 		y_c = y * ob
-		if self.use_negsample:
-			# using negative sampling for efficient optimization
-			neg_logs = []
-			for idx, w_c in enumerate(W_compact):
-				neg = neg_samples[idx].cuda()
-				neg_logs.append(F.sigmoid(-(neg*w_c).sum(0)).log())
-			neg_loss = torch.stack(neg_logs).sum(0)
-			pos_loss = F.sigmoid((W_compact*y_c).sum(1)).log().sum(0)
-			loss = -torch.sum(pos_loss+neg_loss)/W_compact.size(0)
-			logit = W_user.data.cpu().numpy()
-		else:
-			# all attr are observated in new-user prediction
 
-			W_compact = W_user * ob
+		# all attr are observed in new-user prediction
+		def compute_loss(WU, full_label, observed, start, end, weight=None):
+		    W_user = WU.transpose(1,0)[start:end].transpose(1,0)
+		    y = full_label.transpose(1,0)[start:end].transpose(1,0)
+		    ob = observed.transpose(1,0)[start:end].transpose(1,0)
+		    # change all observe for new_user
+		    if not self.partial_training:
+		        ob = (torch.ones(ob.size())).float().cuda()
 
-			c_idx = [i for i, s in enumerate(W_compact.sum(1).data.cpu().numpy()) if s]
+		    W_compact = W_user * ob
 
-			if c_idx:
-				c_idx = torch.from_numpy(np.asarray(c_idx)).long().cuda()
-				W_compact = torch.index_select(W_compact, 0, c_idx)
-				y_c = torch.index_select(y, 0, c_idx)
-				all_possible = [[1 if i==j else 0 for j in range(end-start)] \
-								for i in range(end-start)]
-				all_possible = torch.from_numpy(np.asarray(
-									all_possible)).float().cuda()
-				denom = 0
-				for case in all_possible:
-					denom += torch.sum(W_compact*case, 1).exp()
-				obj = torch.sum(W_compact*y_c, 1).exp() / denom
+		    c_idx = [i for i, s in enumerate(W_compact.sum(1).data.cpu().numpy()) if s]
 
-				if weight is not None:
-					weighted = torch.sum(y_c * weight, 1)
-					loss = -torch.sum(obj.log()*weighted)
-				else:
-					loss = -torch.sum(obj.log())
-				batch_size = y_c.size(0)
-			else:
-				loss = torch.tensor(0, requires_grad=True).cuda().float()
-				batch_size = 1
-			logit = W_user.data.cpu().numpy()
-			logit = F.softmax(W_user, dim=-1).data.cpu().numpy()
+		    if c_idx:
+		        c_idx = (torch.from_numpy(np.asarray(c_idx))).long().cuda()
+		        W_compact = torch.index_select(W_compact, 0, c_idx)
+		        y_c = torch.index_select(y, 0, c_idx)
+		        all_possible = [[1 if i==j else 0 for j in range(end-start)] \
+		                        for i in range(end-start)]
+		        all_possible = (torch.from_numpy(np.asarray(
+		                            all_possible))).float().cuda()
+		        denom = 0
+		        for case in all_possible:
+		            denom += torch.sum(W_compact*case, 1).exp()
+		        obj = torch.sum(W_compact*y_c, 1).exp() / denom
+
+		        if weight is not None:
+		            weighted = torch.sum(y_c * weight, 1)
+		            loss = -torch.sum(obj.log()*weighted)
+		        else:
+		            loss = -torch.sum(obj.log())
+		        batch_size = y_c.size(0)
+		    else:
+		        loss = torch.tensor(0, requires_grad=True).float().cuda()
+		        batch_size = 1
+		    logit = W_user.data.cpu().numpy()
+		    logit = F.softmax(W_user, dim=1).data.cpu().numpy()
+		    return logit, loss / batch_size
+
+		loss = 0
+		for i, t in enumerate(self.tasks):
+		    #if t == 0:
+		    #    weight = Variable(torch.from_numpy(np.asarray([1, 2]))).float().cuda()
+		    #else: weight = None
+		    weight = None
+		    lg, ls = compute_loss(W_user, y, ob, self.cum_len[i], self.cum_len[i+1], weight)
+		    loss += ls
+		    if i == 0:
+		        logit = lg
+		    else:
+		        logit = np.concatenate((logit, lg), 1)
+
 		return logit, loss
