@@ -20,8 +20,9 @@ torch.set_printoptions(threshold=5000)
 class TANDemoPredictor(nn.Module):
     def __init__(self, logger, len_dict, item_emb_size,
                 attention_layer, attr_len, learning_form,
-                use_negsample, partial_training, tasks=[0,1,2]):
+                use_negsample, partial_training, uniq_input, tasks=[0,1,2]):
         super(TANDemoPredictor, self).__init__()
+
         self.logger = logger
         self.attr_len = attr_len
         self.cum_len = np.concatenate(([0], np.cumsum(np.asarray(attr_len)[tasks])))
@@ -29,13 +30,14 @@ class TANDemoPredictor(nn.Module):
         self.attention_layer = attention_layer
         self.partial_training = partial_training
         self.learning_form = learning_form
+        self.uniq_input = uniq_input
         self.tasks = tasks
         self.optimizer = None
         label_size = sum([al for i, al in enumerate(attr_len) if i in tasks])
         self.item_emb = nn.Embedding(len_dict, item_emb_size, padding_idx=0)
         with open('./data/preprd/ocb/idx2brand.pkl', 'rb') as f:
             self.brand2idx = pickle.load(f)
-        #self.init_item_emb_weight(glove_mat)
+
         user_size = item_emb_size
 
         # choose the way to represent users given the histories of them
@@ -159,24 +161,29 @@ class TANDemoPredictor(nn.Module):
             return user_rep
 
 
-        x, x_mask, y, ob = batch
+        x, x_mask, x_uniq, x_uniq_mask, y, ob = batch
         epoch, step = process
         x = Variable(x).cuda()
         x_mask = Variable(x_mask).cuda()
+        x_uniq = Variable(x_uniq).cuda()
+        x_uniq_mask = Variable(x_uniq_mask).cuda()
         y = Variable(torch.from_numpy(y)).cuda().float()
         x_len = torch.sum(x_mask.long(), 1)
         ob = Variable(torch.from_numpy(ob)).cuda().float()
-
         # get negative samples
         #neg_samples = draw_neg_sample(x.size(0), self.attr_len, y, ob)
         # represent items
         embed = self.item_emb(x)
-
+        uniq_emb = self.item_emb(x_uniq)
         # get negative samples
         #neg_samples = self.draw_sample(x.size(0), y)
 
-        user_rep, att_scores = item_attention(embed)
-        num_purchase = torch.sum((x!=0), 1)
+        if self.uniq_input:
+            user_rep, att_scores = item_attention(uniq_emb)
+            num_purchase = torch.sum((x_uniq!=0), 1)
+        else:
+            user_rep, att_scores = item_attention(embed)
+            num_purchase = torch.sum((x!=0), 1)
         #W_compact = W_user * ob
 
         if self.attention_layer==2:
@@ -262,6 +269,9 @@ class TANDemoPredictor(nn.Module):
                 logit = np.concatenate((logit, lg), 1)
 
         if not trainable:
-            self.visualize(x, att_scores, num_purchase, y, logit)
+            if self.uniq_input:
+                self.visualize(x_uniq, att_scores, num_purchase, y, logit)
+            else:
+                self.visualize(x, att_scores, num_purchase, y, logit)
 
         return logit, loss

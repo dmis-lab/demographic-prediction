@@ -1,4 +1,4 @@
-name = 'age_0723'
+name = 'age_1125'
 
 lines = [line.strip() for line in open("./save/att_vis/att_vis_%s.tsv"%name).readlines()]
 

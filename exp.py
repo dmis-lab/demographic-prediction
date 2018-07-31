@@ -52,7 +52,7 @@ class Experiment:
 				for tasks in tasks_list:
 					self.model.append(TANDemoPredictor(logger, self.dict.__len__(), args.item_emb_size,
 									args.attention_layer, Dict.attr_len, args.learning_form,
-									args.use_negsample, args.partial_training, tasks = tasks).cuda())
+									args.use_negsample, args.partial_training, args.uniq_input, tasks = tasks).cuda())
 
 		build_models([self.tasks])
 		for model in self.model:
@@ -128,10 +128,11 @@ class Experiment:
 					if not a_idx in model.tasks:
 						delete_idx.extend(list(range(start, end)))
 					start += al
-				onehot = np.delete(batch[2], delete_idx, 1)
-				observed = np.delete(batch[3], delete_idx, 1)
+				onehot = np.delete(batch[4], delete_idx, 1)
+				observed = np.delete(batch[5], delete_idx, 1)
 				logit, loss = model((epoch, i+1),
-									(batch[0], batch[1], onehot, observed),
+									(batch[0], batch[1], batch[2], batch[3],
+									onehot, observed),
 									trainable)
 				#if self.step_count % self.args.vis_per_step == 0 and not trainable:
 				#	self.summary(loss, self.step_count, False)
@@ -168,7 +169,7 @@ class Experiment:
 				else:
 					f_logit = np.concatenate((f_logit, logit), 1)
 
-			self.accumulate_score(f_logit, batch[2], batch[3], self.tasks, trainable, sample_type)
+			self.accumulate_score(f_logit, batch[4], batch[5], self.tasks, trainable, sample_type)
 
 			if (i+1) % self.args.print_per_step == 0:
 				hm, macP, macR, macF1, wP, wR, wF1 = self.get_score()

@@ -55,6 +55,7 @@ def get_args():
 # model's parameters
 	parser.add_argument('--model-type', type=str, default='TAN',
 						help="[POP, Average, RNN, TAN]")
+	parser.add_argument('--uniq-input', type=int, default=0)
 	parser.add_argument('--rnn-type', type=str, default='LSTM')
 	parser.add_argument('--rnn-size', type=int, default=70)
 	parser.add_argument('--rnn-layer', type=int, default=2)
@@ -137,10 +138,8 @@ def run_experiment(args, logger):
 			train_dataset.sample_data_cls()
 			train_dataset.pick_batch_data(args.num_batches, args.batch_size)
 		if epoch % 2 == 1 and args.data_sampling:
-			#train_dataset.sample_data_cls()
 			train_dataset.pick_batch_data(args.num_batches, args.batch_size)
-			#train_dataset.shuffle_data()
-			#train_dataset.sample_subset(1000)
+
 
 		tr_t0 = time.clock()
 		tr_loss, tr_hm, \
@@ -209,10 +208,6 @@ def main():
 	elif args.tasks == None and args.dataset == 'ocb':
 		args.tasks = [0,1,2]
 
-#if args.model_type == 'TAN' and args.attention_layer == 2:
-#args.learning_form = 'seperated'
-
-#run_mfdm_exp(args)
 
 # set random seeds
 	np.random.seed(args.rand_seed)
