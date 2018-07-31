@@ -179,7 +179,7 @@ def run_experiment(args, logger):
 			max_wR = va_wR
 			max_wF1 = va_wF1
 			stop_cnt = 0
-		elif max_score == va_wF1:
+		else:
 			# lr decay
 			exp.adjust_lr()
 			stop_cnt += 1

@@ -13,4 +13,4 @@ __pycache__
 *.npy
 *.ipynb
 *.torch
-
+*.pkl
