@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.utils.rnn import pad_packed_sequence, pack_padded_sequence
 
+import pickle
 from collections import Counter
 from functools import reduce
 import numpy as np
@@ -32,6 +33,8 @@ class TANDemoPredictor(nn.Module):
         self.optimizer = None
         label_size = sum([al for i, al in enumerate(attr_len) if i in tasks])
         self.item_emb = nn.Embedding(len_dict, item_emb_size, padding_idx=0)
+        with open('./data/preprd/ocb/idx2brand.pkl', 'rb') as f:
+            self.brand2idx = pickle.load(f)
         #self.init_item_emb_weight(glove_mat)
         user_size = item_emb_size
 
@@ -66,47 +69,83 @@ class TANDemoPredictor(nn.Module):
         self.all_possible = Variable(torch.from_numpy(np.asarray(
                                 reduce(combinate, all_attr)))).float().cuda()
 
+
     def init_item_emb_weight(self, glove_mat):
         glove_mat = torch.from_numpy(glove_mat).cuda()
         self.glove_emb.weight.data = glove_mat
         self.glove_emb.weight.requires_grad = True
 
-    def forward(self, process, batch, sample_type, sampling=False):
-        x, x_mask, y, ob = batch
-        epoch, step = process
-        x = Variable(x).cuda()
-        x_mask = Variable(x_mask).cuda()
-        y = Variable(torch.from_numpy(y)).cuda().float()
-        x_len = torch.sum(x_mask.long(), 1)
-        ob = Variable(torch.from_numpy(ob)).cuda().float()
 
-        # get negative samples
-        #neg_samples = draw_neg_sample(x.size(0), self.attr_len, y, ob)
-        # represent items
-        embed = self.item_emb(x)
-        # get negative samples
-        #neg_samples = self.draw_sample(x.size(0), y)
+    def visualize(self, brand, att_scores, num_purchase, labels, logits):
+        def to_onehot(logit, label):
+            attr_len = [0,2,6,8]
+            pred2gender = ['male', 'female']
+            pred2age = ['young', 'adult', 'middle-age', 'old']
+            pred2marital = ['married', 'single']
 
+            pred, true = [], []
+            for attr_idx in range(len(attr_len)-1):
+                p = np.argmax(logit[attr_len[attr_idx]:attr_len[attr_idx+1]])
+                t = np.argmax(label[attr_len[attr_idx]:attr_len[attr_idx+1]])
+                if attr_idx == 0 :
+                    p = pred2gender[p]
+                    t = pred2gender[t]
+                elif attr_idx == 1 :
+                    p = pred2age[p]
+                    t = pred2age[t]
+                else :
+                    p = pred2marital[p]
+                    t = pred2marital[t]
+                pred.append(p)
+                true.append(t)
+            return pred, true
+
+        if len(att_scores) == 3:
+            attr_type = ['gender', 'age', 'marital']
+            for type_idx, typ in enumerate(attr_type):
+                wf = open("./save/att_vis/att_vis_{}_{}.tsv".format(typ,
+                time.strftime("%H%M", time.gmtime())), 'w')
+                brand = brand.type(torch.cuda.FloatTensor)
+                att_score = att_scores[type_idx].squeeze()
+                for i, cnt in enumerate(num_purchase):
+                    logit = logits[i]
+                    label = labels[i]
+                    pred, true = to_onehot(logit, label)
+
+                    cnt = cnt.item()
+                    brand_list = brand[i][:cnt].data.cpu().numpy().astype(int).tolist()
+                    brand_name_list = [self.brand2idx[brand_idx] for brand_idx in brand_list]
+                    att = att_score[i].data.cpu().numpy() * 100
+                    att = att.tolist()[:cnt]
+                    str_tmp = [str(true), str(pred),
+                               ' '.join(str(e) for e in brand_name_list),
+                               ' '.join(str(e) for e in att)]
+                    str_tmp = '\t'.join(str_tmp) + '\n'
+                    wf.write(str_tmp)
+                wf.close()
+
+    def forward(self, process, batch, trainable=False):
 
         def get_attention(w, emb):
             att_u = F.tanh(w(embed))
             att_score = F.softmax(att_u,1)
             attnd_emb = embed * att_score
             rep = F.relu(torch.sum(attnd_emb, 1))
-            return rep
+            return rep, att_score
 
         def item_attention(embed):
             # embed : [B,K,emb] --> att_u [B,K,1] for each attribute
             batch = embed.size(0)
             attr_rep = []
+            att_scores = []
             for attr_w in self.item_att_W:
-                attr_rep.append(get_attention(attr_w, embed).unsqueeze(2))
-
+                rep, att = get_attention(attr_w, embed)
+                attr_rep.append(rep.unsqueeze(2))
+                att_scores.append(att)
             # user_rep : [B, 3(num attr), emb]
             user_rep = torch.cat(attr_rep, 2).view(batch,-1)
 
-            return user_rep
-
+            return user_rep, att_scores
 
         def attr_attention(embed, attr_att_W):
             batch = embed.size(0)
@@ -120,7 +159,24 @@ class TANDemoPredictor(nn.Module):
             return user_rep
 
 
-        user_rep = item_attention(embed)
+        x, x_mask, y, ob = batch
+        epoch, step = process
+        x = Variable(x).cuda()
+        x_mask = Variable(x_mask).cuda()
+        y = Variable(torch.from_numpy(y)).cuda().float()
+        x_len = torch.sum(x_mask.long(), 1)
+        ob = Variable(torch.from_numpy(ob)).cuda().float()
+
+        # get negative samples
+        #neg_samples = draw_neg_sample(x.size(0), self.attr_len, y, ob)
+        # represent items
+        embed = self.item_emb(x)
+
+        # get negative samples
+        #neg_samples = self.draw_sample(x.size(0), y)
+
+        user_rep, att_scores = item_attention(embed)
+        num_purchase = torch.sum((x!=0), 1)
         #W_compact = W_user * ob
 
         if self.attention_layer==2:
@@ -204,5 +260,8 @@ class TANDemoPredictor(nn.Module):
                 logit = lg
             else:
                 logit = np.concatenate((logit, lg), 1)
+
+        if not trainable:
+            self.visualize(x, att_scores, num_purchase, y, logit)
 
         return logit, loss

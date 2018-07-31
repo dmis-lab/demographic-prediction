@@ -132,7 +132,7 @@ class Experiment:
 				observed = np.delete(batch[3], delete_idx, 1)
 				logit, loss = model((epoch, i+1),
 									(batch[0], batch[1], onehot, observed),
-									sample_type, sampling)
+									trainable)
 				#if self.step_count % self.args.vis_per_step == 0 and not trainable:
 				#	self.summary(loss, self.step_count, False)
 
@@ -208,7 +208,7 @@ class Experiment:
 								for i, oh in enumerate(onehot)])
 
 		if self.args.model_type == 'POP':
-			popular = [[1, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0] \
+			popular = [[0, 1, 0, 1, 0, 0, 0, 1] \
 						for _ in range(y_numbering.shape[0])]
 			logit = popular
 
