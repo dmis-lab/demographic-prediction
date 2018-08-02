@@ -103,28 +103,34 @@ class TANDemoPredictor(nn.Module):
             return pred, true
 
         if len(att_scores) == 3:
-            attr_type = ['gender', 'age', 'marital']
-            for type_idx, typ in enumerate(attr_type):
-                wf = open("./save/att_vis/att_vis_{}_{}.tsv".format(typ,
-                time.strftime("%H%M", time.gmtime())), 'w')
-                brand = brand.type(torch.cuda.FloatTensor)
-                att_score = att_scores[type_idx].squeeze()
-                for i, cnt in enumerate(num_purchase):
-                    logit = logits[i]
-                    label = labels[i]
-                    pred, true = to_onehot(logit, label)
 
-                    cnt = cnt.item()
-                    brand_list = brand[i][:cnt].data.cpu().numpy().astype(int).tolist()
-                    brand_name_list = [self.brand2idx[brand_idx] for brand_idx in brand_list]
-                    att = att_score[i].data.cpu().numpy() * 100
-                    att = att.tolist()[:cnt]
-                    str_tmp = [str(true), str(pred),
-                               ' '.join(str(e) for e in brand_name_list),
-                               ' '.join(str(e) for e in att)]
-                    str_tmp = '\t'.join(str_tmp) + '\n'
-                    wf.write(str_tmp)
-                wf.close()
+            wf = open("./save/att_vis/att_vis_{}.tsv".format(time.strftime("%H%M", time.gmtime())), 'w')
+            brand = brand.type(torch.cuda.FloatTensor)
+            att_score_gen = att_scores[0].squeeze()
+            att_score_age = att_scores[1].squeeze()
+            att_score_mar = att_scores[2].squeeze()
+            for i, cnt in enumerate(num_purchase):
+                logit = logits[i]
+                label = labels[i]
+                pred, true = to_onehot(logit, label)
+
+                cnt = cnt.item()
+                brand_list = brand[i][:cnt].data.cpu().numpy().astype(int).tolist()
+                brand_name_list = [self.brand2idx[brand_idx] for brand_idx in brand_list]
+                att_gen = att_score_gen[i].data.cpu().numpy() * 100
+                att_age = att_score_age[i].data.cpu().numpy() * 100
+                att_mar = att_score_mar[i].data.cpu().numpy() * 100
+                att_gen = att_gen.tolist()[:cnt]
+                att_age = att_age.tolist()[:cnt]
+                att_mar = att_mar.tolist()[:cnt]
+                str_tmp = [str(true), str(pred),
+                           ' '.join(str(e) for e in brand_name_list),
+                           ' '.join(str(e) for e in att_gen),
+                           ' '.join(str(e) for e in att_age),
+                           ' '.join(str(e) for e in att_mar)]
+                str_tmp = '\t'.join(str_tmp) + '\n'
+                wf.write(str_tmp)
+            wf.close()
 
     def forward(self, process, batch, trainable=False):
 
