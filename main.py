@@ -40,8 +40,14 @@ def get_args():
 	parser.add_argument('--momentum', type=float, default=0.9)
 	parser.add_argument('--use-negsample', type=int, default=0)
 
-# embeddings
-	parser.add_argument('--item-emb-size', type=int, default=100)
+# sharing & model structure
+	parser.add_argument('--uniq-input', type=int, default=0)
+	parser.add_argument('--share-emb', type=int, default=0)
+	parser.add_argument('--share-attention', type=int, default=0)
+	parser.add_argument('--attention-layer', type=int, default=1,
+						help="you can choose [1 or 2] when using TAN model")
+	parser.add_argument('--learning-form', type=str, default='seperated',
+						help="[separated, structured]")
 
 # training parameters
 	parser.add_argument('--batch-size', type=int, default=64)
@@ -55,15 +61,13 @@ def get_args():
 # model's parameters
 	parser.add_argument('--model-type', type=str, default='TAN',
 						help="[POP, Average, RNN, TAN]")
-	parser.add_argument('--uniq-input', type=int, default=0)
+	parser.add_argument('--item-emb-size', type=int, default=100)
+
 	parser.add_argument('--rnn-type', type=str, default='LSTM')
 	parser.add_argument('--rnn-size', type=int, default=70)
 	parser.add_argument('--rnn-layer', type=int, default=2)
 	parser.add_argument('--rnn-drop', type=float, default=0.2)
-	parser.add_argument('--attention-layer', type=int, default=1,
-						help="you can choose [1 or 2] when using TAN model")
-	parser.add_argument('--learning-form', type=str, default='seperated',
-						help="[separated, structured]")
+
 
 # debugging and analysis
 	parser.add_argument('--save-log', type=int, default=1)
@@ -183,7 +187,7 @@ def run_experiment(args, logger):
 			exp.adjust_lr()
 			stop_cnt += 1
 		if args.model_type == 'POP': break
-		if stop_cnt >= 50 and args.early_stop:
+		if stop_cnt >= 5 and args.early_stop:
 			return max_epoch, max_loss, max_hm, \
 					max_macP, max_macR, max_macF1, \
 					max_wP, max_wR, max_wF1
