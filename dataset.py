@@ -11,7 +11,7 @@ import torch
 from torch.autograd import Variable
 from torch.utils.data import Dataset
 from torch.utils.data.sampler import Sampler
-from imblearn.over_sampling import SMOTE
+#from imblearn.over_sampling import SMOTE
 
 # set random seeds
 np.random.seed(1)

@@ -26,11 +26,10 @@ def get_args():
 	parser.add_argument('--sample_type', type=str, default='full')
 
 # task settings
-	parser.add_argument('--partial-ratio', type=str, default='50')
 	parser.add_argument('--partial-training', type=int, default=1)
 	parser.add_argument('--partial-eval', type=int, default=1)
-	parser.add_argument('--task-type', type=str, default='partial',
-						help="[partial, new_user]")
+	parser.add_argument('--task-type', type=str, default='new_user',
+						help="[partial50, new_user]")
 	parser.add_argument('--tasks', type=int, nargs='+')
 
 # optimizations
@@ -38,14 +37,14 @@ def get_args():
 						help="Adam / RMSprop / SGD / Adagrad / Adadelta / Adamax")
 	parser.add_argument('--amsgrad', type=int, default=0)
 	parser.add_argument('--momentum', type=float, default=0.9)
-	parser.add_argument('--use-negsample', type=int, default=1)
+	parser.add_argument('--use-negsample', type=int, default=0)
 
 # embeddings
 	parser.add_argument('--item-emb-size', type=int, default=100)
 
 # training parameters
 	parser.add_argument('--batch-size', type=int, default=64)
-	parser.add_argument('--learning-rate', type=float, default=0.001)
+	parser.add_argument('--learning-rate', type=float, default=5e-3)
 	parser.add_argument('--user_emb_dim', type=int, default=100)
 	parser.add_argument('--num_negs', type=int, default=1)
 	parser.add_argument('--max-epoch', type=int, default=20000)
@@ -53,7 +52,7 @@ def get_args():
 	parser.add_argument('--num-batches', type=int, default=20)
 
 # model's parameters
-	parser.add_argument('--model-type', type=str, default='Average',
+	parser.add_argument('--model-type', type=str, default='TAN',
 						help="[POP, Average, RNN, TAN]")
 	parser.add_argument('--rnn-type', type=str, default='LSTM')
 	parser.add_argument('--rnn-size', type=int, default=70)
@@ -61,11 +60,11 @@ def get_args():
 	parser.add_argument('--rnn-drop', type=float, default=0.2)
 	parser.add_argument('--attention-layer', type=int, default=1,
 						help="you can choose [1 or 2] when using TAN model")
-	parser.add_argument('--learning-form', type=str, default='structured',
+	parser.add_argument('--learning-form', type=str, default='seperated',
 						help="[separated, structured]")
 
 # debugging and analysis
-	parser.add_argument('--save-log', type=int, default=0)
+	parser.add_argument('--save-log', type=int, default=1)
 	parser.add_argument('--save-output', type=int, default=0)
 	parser.add_argument('--print-per-step', type=int, default=99999)
 	parser.add_argument('--vis-per-step', type=int, default=100)
@@ -74,7 +73,7 @@ def get_args():
 # regularization
 	parser.add_argument('--early-stop', type=str, default='va_wF1',
 						help="you can combinate two words which are from in each set: [mic, mac, w] and [P, R, F1]")
-	parser.add_argument('--weight-decay', type=float, default=0.0001)
+	parser.add_argument('--weight-decay', type=float, default=1e-4)
 	parser.add_argument('--lr-decay', type=float, default=0.0)
 
 	args = parser.parse_args()
@@ -98,20 +97,15 @@ def run_experiment(args, logger):
 	"""
 	test_loader = DataLoader(
 	             dataset=DemoAttrDataset(logger, args.task_type, 'test',
-								args.data_path+args.dataset+'/test.json'),
+								args.data_path+args.dataset+'/filtered_test_'+args.task_type),
 	             batch_size=args.batch_size,
 	             shuffle=False,
 	             num_workers=2,
 				 collate_fn=batchify)
 
 	exp = Experiment(args, logger)
-	train_dataset = DemoAttrDataset(
-						logger,
-						args.task_type,
-						'train',
-						#args.data_path+'train_'+args.task_type+args.partial_ratio+'.json',
-						args.data_path+args.dataset+'/train.json',
-					)
+	train_dataset = DemoAttrDataset(logger, args.task_type, 'train',
+								args.data_path+args.dataset+'/filtered_train_'+args.task_type)
 	train_sampler = SortedBatchSampler(train_dataset.lengths(),
 									args.batch_size,
 									shuffle=True)
@@ -132,8 +126,8 @@ def run_experiment(args, logger):
 		if len(args.tasks)==1:
 			# if task is for one attr sample with that attr
 			sample_attr = args.tasks[0]
-		
-		if epoch % 2 == 0 and args.data_sampling: 
+
+		if epoch % 2 == 0 and args.data_sampling:
 			train_dataset.sample_data_cls()
 			train_dataset.pick_batch_data(args.num_batches, args.batch_size)
 		if epoch % 2 == 1 and args.data_sampling:
@@ -165,7 +159,7 @@ def run_experiment(args, logger):
 					.format(va_macP, va_macR, va_macF1))
 		logger.info("% weighted - wP:{:2.3f}, wR:{:2.3f}, wF1:{:2.3f} \n"
 					.format(va_wP, va_wR, va_wF1))
-		
+
 		# early stop
 		if max_score < va_wF1:
 			max_epoch = epoch+1
@@ -184,7 +178,7 @@ def run_experiment(args, logger):
 			exp.adjust_lr()
 			stop_cnt += 1
 		if args.model_type == 'POP': break
-		if stop_cnt >= 5 and args.early_stop:
+		if stop_cnt >= 50 and args.early_stop:
 			return max_epoch, max_loss, max_hm, \
 					max_macP, max_macR, max_macF1, \
 					max_wP, max_wR, max_wF1
