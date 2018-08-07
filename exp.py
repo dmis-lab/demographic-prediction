@@ -46,11 +46,13 @@ class Experiment:
 			if args.model_type!='TAN':
 				for tasks in tasks_list:
 					self.model.append(AvgPooling(logger, self.dict.__len__(),
-								args.item_emb_size, Dict.attr_len, args.num_negs,
+								args.share_emb,  args.uniq_input,
+								args.item_emb_size, Dict.attr_len, args.learning_form,
 								args.partial_training, args.use_negsample, tasks=tasks).cuda())
 			else:
 				for tasks in tasks_list:
-					self.model.append(TANDemoPredictor(logger, self.dict.__len__(), args.item_emb_size,
+					self.model.append(TANDemoPredictor(logger, self.dict.__len__(),
+									args.item_emb_size,	args.share_emb, args.share_attention, args.uniq_input,
 									args.attention_layer, Dict.attr_len, args.learning_form,
 									args.use_negsample, args.partial_training, tasks = tasks).cuda())
 
@@ -91,6 +93,8 @@ class Experiment:
 		self.num_steps = num_steps
 		self.logger.info("== {} mode : {} steps for {} samples == \n"
 			.format(data_loader.dataset.data_type, num_steps, num_samples))
+		self.vis_file = open("./save/att_vis/att_vis_{}_{}.tsv".format(
+						time.strftime("%H%M", time.gmtime()), epoch), 'a')
 
 		self.ytc_counter = []
 		self.ypc_counter = []
@@ -128,10 +132,11 @@ class Experiment:
 					if not a_idx in model.tasks:
 						delete_idx.extend(list(range(start, end)))
 					start += al
-				onehot = np.delete(batch[2], delete_idx, 1)
-				observed = np.delete(batch[3], delete_idx, 1)
+				onehot = np.delete(batch[4], delete_idx, 1)
+				observed = np.delete(batch[5], delete_idx, 1)
 				logit, loss = model((epoch, i+1),
-									(batch[0], batch[1], onehot, observed),
+									(batch[0], batch[1], batch[2], batch[3],
+									onehot, observed), self.vis_file,
 									trainable)
 				#if self.step_count % self.args.vis_per_step == 0 and not trainable:
 				#	self.summary(loss, self.step_count, False)
@@ -168,7 +173,7 @@ class Experiment:
 				else:
 					f_logit = np.concatenate((f_logit, logit), 1)
 
-			self.accumulate_score(f_logit, batch[2], batch[3], self.tasks, trainable, sample_type)
+			self.accumulate_score(f_logit, batch[4], batch[5], self.tasks, trainable, sample_type)
 
 			if (i+1) % self.args.print_per_step == 0:
 				hm, macP, macR, macF1, wP, wR, wF1 = self.get_score()
@@ -186,6 +191,7 @@ class Experiment:
 											100*self.attr_em[2]/self.attr_cnt[2]))
 											#100*self.attr_em[3]/self.attr_cnt[3],
 											#100*self.attr_em[4]/self.attr_cnt[4]))
+		self.vis_file.close()
 		print('pred :', self.ypc_counter)
 		print('true :', self.ytc_counter)
 		self.logger.info("Accuracy - gender:{:3.1f}, age:{:3.1f}, marital:{:3.1f} \n"

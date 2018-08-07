@@ -12,24 +12,38 @@ np.set_printoptions(threshold=np.inf)
 torch.set_printoptions(threshold=99999)
 
 class AvgPooling(nn.Module):
-	def __init__(self, logger, len_dict,
-				item_emb_size, attr_len, num_negs,
+	def __init__(self, logger, len_dict, share_emb, uniq_input,
+				item_emb_size, attr_len, learning_form,
 				partial_training, use_negsample, tasks=[0,1,2]):
 		super(AvgPooling, self).__init__()
 		self.tasks = tasks
 		self.cum_len = np.concatenate(([0], np.cumsum(np.asarray(attr_len)[tasks])))
 		self.logger = logger
+		self.share_emb = share_emb
 		self.attr_len = attr_len
+		self.learning_form = learning_form
 		self.use_negsample = use_negsample
-		self.num_negs = num_negs
 		self.partial_training = partial_training
 		self.optimizer = None
 
+		user_size = item_emb_size
 		label_size = sum([al for i, al in enumerate(attr_len)])
-		self.item_emb = nn.Embedding(len_dict, item_emb_size, padding_idx=0)
+
+		if share_emb:
+			self.item_emb = nn.Embedding(len_dict, item_emb_size, padding_idx=0)
+		else:
+			self.item_emb = nn.ModuleList([nn.Embedding(len_dict, item_emb_size, padding_idx=0)
+										for _ in range(3)])
+
+		if learning_form == 'seperated':
+			self.W_all = nn.ModuleList()
+			for i, al in enumerate(attr_len):
+			    if i in tasks:
+			        self.W_all.append(nn.Linear(user_size, attr_len[i], bias=False))
+		else:
+			self.W = nn.Linear(item_emb_size, label_size, bias=False)
 
 		# choose a learning method
-		self.W = nn.Linear(item_emb_size, label_size, bias=False)
 
 		# generate all the possible structured vectors
 		all_attr = []
@@ -40,7 +54,7 @@ class AvgPooling(nn.Module):
 		self.all_possible = np.asarray(reduce(combinate, all_attr))
 
 	def forward(self, process, batch, sample_type, sampling=False):
-		x, x_mask, y, ob = batch
+		x, x_mask, x_uniq, x_uniq_mask, y, ob = batch
 		epoch, step = process
 		x = x.cuda()
 		x_mask = x_mask.cuda()
@@ -52,19 +66,45 @@ class AvgPooling(nn.Module):
 			ob = torch.ones(ob.size()).float().cuda()
 
 		# represent items
-		embed = self.item_emb(x)
-		# represent users
-		user_rep = []
-		for i, emb in enumerate(embed):
-			user_rep.append(torch.sum(emb, 0)/x_len[i].float())
-		user_rep = torch.stack(user_rep, 0)
+		if self.share_emb:
+			embed = self.item_emb(x)
+			# represent users
+			user_rep = []
+			for i, emb in enumerate(embed):
+				user_rep.append(torch.sum(emb, 0)/x_len[i].float())
+			user_rep = torch.stack(user_rep, 0)
+		else:
+			user_reps = []
+			for i in range(3):
+				embed = self.item_emb[i](x)
+				user_rep = []
+				for i, emb in enumerate(embed):
+					user_rep.append(torch.sum(emb, 0)/x_len[i].float())
+				user_rep = torch.stack(user_rep, 0)
+				user_reps.append(user_rep)
+
 		# add a non-linear
 		#user_rep = F.relu(user_rep)
 
 		# masking to distinguish between known and unknown attributes
-		W_user = self.W(user_rep)
-		W_compact = W_user * ob
-		y_c = y * ob
+		if self.learning_form == 'structured':
+			W_user = self.W(user_rep)
+		else:
+			if self.share_emb:
+				for i, W in enumerate(self.W_all):
+				    if i == 0:
+				        W_user = W(user_rep)
+				    else:
+				        W_user = torch.cat((W_user, W(user_rep)), 1)
+			else:
+				for i, W in enumerate(self.W_all):
+				    if i == 0:
+				        W_user = W(user_reps[i])
+				    else:
+				        W_user = torch.cat((W_user, W(user_reps[i])), 1)
+
+		#W_compact = W_user * ob
+		#y_c = y * ob
 
 		# all attr are observed in new-user prediction
 		def compute_loss(WU, full_label, observed, start, end, weight=None):
