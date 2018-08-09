@@ -21,7 +21,7 @@ def get_args():
 	parser.add_argument('--data-path', type=str, default="./data/preprd/",
 						help="")
 	parser.add_argument('--rand-seed', type=int, default=1)
-	parser.add_argument('--data-shuffle', type=int, default=1)
+	parser.add_argument('--data-shuffle', type=int, default=0)
 	parser.add_argument('--data-sampling', type=int, default=0)
 	parser.add_argument('--sample_type', type=str, default='full')
 
@@ -41,12 +41,15 @@ def get_args():
 
 # sharing & model structure
 	parser.add_argument('--uniq-input', type=int, default=0)
-	parser.add_argument('--share-emb', type=int, default=0)
+	parser.add_argument('--share-emb', type=int, default=1)
 	parser.add_argument('--share-attention', type=int, default=0)
 	parser.add_argument('--attention-layer', type=int, default=1,
 						help="you can choose [1 or 2] when using TAN model")
 	parser.add_argument('--learning-form', type=str, default='seperated',
 						help="[separated, structured]")
+
+# embeddings
+	parser.add_argument('--item-emb-size', type=int, default=100)
 
 # training parameters
 	parser.add_argument('--batch-size', type=int, default=64)
@@ -59,14 +62,11 @@ def get_args():
 
 # model's parameters
 	parser.add_argument('--model-type', type=str, default='TAN',
-						help="[POP, Average, RNN, TAN]")
-	parser.add_argument('--item-emb-size', type=int, default=100)
-
+						help="[POP, SVD_str, Average, RNN, TAN]")
 	parser.add_argument('--rnn-type', type=str, default='LSTM')
 	parser.add_argument('--rnn-size', type=int, default=70)
 	parser.add_argument('--rnn-layer', type=int, default=2)
 	parser.add_argument('--rnn-drop', type=float, default=0.2)
-
 
 # debugging and analysis
 	parser.add_argument('--save-log', type=int, default=1)
@@ -101,16 +101,15 @@ def run_experiment(args, logger):
 					collate_fn=batchify)
 	"""
 	test_loader = DataLoader(
-	             dataset=DemoAttrDataset(logger, args.task_type, 'test',
-								args.data_path+args.dataset+'/filtered_test_'+args.task_type),
-	             batch_size=args.batch_size,
-	             shuffle=False,
-	             num_workers=2,
+				 dataset=DemoAttrDataset(logger, args.task_type, 'test',
+								args.data_path+args.dataset+'/test_'+args.task_type),
+				 batch_size=args.batch_size,
+				 shuffle=False,
+				 num_workers=2,
 				 collate_fn=batchify)
 
-	exp = Experiment(args, logger)
 	train_dataset = DemoAttrDataset(logger, args.task_type, 'train',
-								args.data_path+args.dataset+'/filtered_train_'+args.task_type)
+								args.data_path+args.dataset+'/train_'+args.task_type)
 	train_sampler = SortedBatchSampler(train_dataset.lengths(),
 									args.batch_size,
 									shuffle=True)
@@ -121,6 +120,8 @@ def run_experiment(args, logger):
 					#sampler=train_sampler,
 					num_workers=2,
 					collate_fn=batchify)
+
+	exp = Experiment(args, logger)
 
 	max_score = max_loss = stop_cnt = 0
 	max_macP = max_macR = max_macF1 = max_wP = max_wR = max_wF1 = 0
@@ -136,8 +137,10 @@ def run_experiment(args, logger):
 			train_dataset.sample_data_cls()
 			train_dataset.pick_batch_data(args.num_batches, args.batch_size)
 		if epoch % 2 == 1 and args.data_sampling:
+			#train_dataset.sample_data_cls()
 			train_dataset.pick_batch_data(args.num_batches, args.batch_size)
-
+			#train_dataset.shuffle_data()
+			#train_dataset.sample_subset(1000)
 
 		tr_t0 = time.clock()
 		tr_loss, tr_hm, \
@@ -181,7 +184,7 @@ def run_experiment(args, logger):
 			exp.adjust_lr()
 			stop_cnt += 1
 		if args.model_type == 'POP': break
-		if stop_cnt >= 5 and args.early_stop:
+		if stop_cnt >= 50 and args.early_stop:
 			return max_epoch, max_loss, max_hm, \
 					max_macP, max_macR, max_macF1, \
 					max_wP, max_wR, max_wF1
@@ -198,14 +201,15 @@ def main():
 		args.partial_training = args.partial_eval = 1
 	elif args.task_type == 'new_user':
 		args.partial_training = args.partial_eval = 0
-	if args.model_type == 'TAN' and args.attention_layer == 2:
-		args.learning_form = 'seperated'
+	#if args.model_type == 'TAN' and args.attention_layer == 2:
+	#	args.learning_form = 'seperated'
 
 	if args.tasks == None and args.dataset == 'beiren':
 		args.tasks = [0,1,2,3,4]
 	elif args.tasks == None and args.dataset == 'ocb':
 		args.tasks = [0,1,2]
 
+#run_mfdm_exp(args)
 
 # set random seeds
 	np.random.seed(args.rand_seed)
