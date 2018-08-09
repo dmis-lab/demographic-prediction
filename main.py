@@ -26,10 +26,11 @@ def get_args():
 	parser.add_argument('--sample_type', type=str, default='full')
 
 # task settings
+	parser.add_argument('--partial-ratio', type=str, default='50')
 	parser.add_argument('--partial-training', type=int, default=1)
 	parser.add_argument('--partial-eval', type=int, default=1)
 	parser.add_argument('--task-type', type=str, default='new_user',
-						help="[partial50, new_user]")
+						help="[partial, new_user]")
 	parser.add_argument('--tasks', type=int, nargs='+')
 
 # optimizations
@@ -102,15 +103,20 @@ def run_experiment(args, logger):
 	"""
 	test_loader = DataLoader(
 	             dataset=DemoAttrDataset(logger, args.task_type, 'test',
-								args.data_path+args.dataset+'/filtered_test_'+args.task_type),
+								args.data_path+args.dataset+'/test.json'),
 	             batch_size=args.batch_size,
 	             shuffle=False,
 	             num_workers=2,
 				 collate_fn=batchify)
 
 	exp = Experiment(args, logger)
-	train_dataset = DemoAttrDataset(logger, args.task_type, 'train',
-								args.data_path+args.dataset+'/filtered_train_'+args.task_type)
+	train_dataset = DemoAttrDataset(
+						logger,
+						args.task_type,
+						'train',
+						#args.data_path+'train_'+args.task_type+args.partial_ratio+'.json',
+						args.data_path+args.dataset+'/train.json',
+					)
 	train_sampler = SortedBatchSampler(train_dataset.lengths(),
 									args.batch_size,
 									shuffle=True)
