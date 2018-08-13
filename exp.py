@@ -182,19 +182,22 @@ class Experiment:
 							.format(macP, macR, macF1))
 				self.logger.info("weighted - wP:{:2.3f}, wR:{:2.3f}, wF1:{:2.3f}"
 							.format(wP, wR, wF1))
-				#self.logger.info("Accuracy - gender:{:3.1f}, marital:{:3.1f}, age:{:3.1f}, income:{:3.1f}, edu:{:3.1f} \n"
-				self.logger.info("Accuracy - gender:{:3.1f}, age:{:3.1f}, marital:{:3.1f} \n"
+				self.logger.info("Accuracy - gender:{:3.1f}, marital:{:3.1f}, age:{:3.1f}, income:{:3.1f}, edu:{:3.1f} \n"
+				#self.logger.info("Accuracy - gender:{:3.1f}, age:{:3.1f}, marital:{:3.1f} \n"
 									.format(100*self.attr_em[0]/self.attr_cnt[0],
 											100*self.attr_em[1]/self.attr_cnt[1],
-											100*self.attr_em[2]/self.attr_cnt[2]))
-											#100*self.attr_em[3]/self.attr_cnt[3],
-											#100*self.attr_em[4]/self.attr_cnt[4]))
+											100*self.attr_em[2]/self.attr_cnt[2],
+											100*self.attr_em[3]/self.attr_cnt[3],
+											100*self.attr_em[4]/self.attr_cnt[4]))
 		print('pred :', self.ypc_counter)
 		print('true :', self.ytc_counter)
-		self.logger.info("Accuracy - gender:{:3.1f}, age:{:3.1f}, marital:{:3.1f} \n"
+		self.logger.info("Accuracy - gender:{:3.1f}, marital:{:3.1f}, age:{:3.1f}, income:{:3.1f}, edu:{:3.1f} \n"
+		#self.logger.info("Accuracy - gender:{:3.1f}, age:{:3.1f}, marital:{:3.1f} \n"
 							.format(100*self.attr_em[0]/self.attr_cnt[0],
 									100*self.attr_em[1]/self.attr_cnt[1],
-									100*self.attr_em[2]/self.attr_cnt[2]))
+									100*self.attr_em[2]/self.attr_cnt[2],
+									100*self.attr_em[3]/self.attr_cnt[3],
+									100*self.attr_em[4]/self.attr_cnt[4]))
 		#for name, param in model.named_parameters():
 		#	print(name, torch.norm(param))
 		hm, macP, macR, macF1, wP, wR, wF1 = self.get_score()
