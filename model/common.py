@@ -2,6 +2,10 @@
 
 import random
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import numpy as np
+import sys
 
 def combinate(list1, list2):
 	out = []
@@ -18,7 +22,6 @@ def draw_neg_sample(batch_size, attr_len, label, observed):
 	for val_l in val_label:
 		neg_idx = []
 		val_y = val_l.nonzero()
-		print('label',val_y)
 		for attr_y in val_y:
 			start = end = 0
 			for n in attr_len:
@@ -31,11 +34,56 @@ def draw_neg_sample(batch_size, attr_len, label, observed):
 		neg_sample = torch.zeros(label.size(1))
 		for idx in neg_idx:
 			neg_sample[idx] = 1
-		print(neg_sample)
 		neg_samples.append(neg_sample)
-	sys.exit()
 	return torch.stack(neg_samples)
 
+def compute_loss(WU, full_label, start, end, weight=None):
+	W_user = WU.transpose(1,0)[start:end].transpose(1,0)
+	y = full_label.transpose(1,0)[start:end].transpose(1,0)
+
+	c_idx = [i for i, s in enumerate(W_user.sum(1).data.cpu().numpy()) if s]
+
+	if c_idx:
+		c_idx = (torch.from_numpy(np.asarray(c_idx))).long().cuda()
+		W_user = torch.index_select(W_user, 0, c_idx)
+		y_c = torch.index_select(y, 0, c_idx)
+		all_possible = [[1 if i==j else 0 for j in range(end-start)] \
+						for i in range(end-start)]
+		all_possible = (torch.from_numpy(np.asarray(
+							all_possible))).float().cuda()
+		denom = 0
+		for case in all_possible:
+			denom += torch.sum(W_user*case, 1).exp()
+		obj = torch.sum(W_user*y_c, 1).exp() / denom
+
+		if weight is not None:
+			weighted = torch.sum(y_c * weight, 1)
+			loss = -torch.sum(obj.log()*weighted)
+		else:
+			loss = -torch.sum(obj.log())
+		batch_size = y_c.size(0)
+	else:
+		loss = torch.tensor(0, requires_grad=True).float().cuda()
+		batch_size = 1
+	logit = W_user.data.cpu().numpy()
+	logit = F.softmax(W_user, dim=1).data.cpu().numpy()
+	return logit, loss / batch_size
+
+def compute_cross_entropy(WU, full_label, start, end, loss_criterion):
+	W_user = WU.transpose(1,0)[start:end].transpose(1,0)
+	y = full_label.transpose(1,0)[start:end].transpose(1,0).cpu().numpy()
+
+	c_idx = [i for i, ob in enumerate(y.sum(1)) if ob]
+	y_c = y[c_idx]
+	W_c = W_user[c_idx]
+
+	y_c = torch.from_numpy(np.argmax(y_c, 1)).cuda().long()
+	loss = loss_criterion(W_c, y_c)
+
+	logit = W_user.data.cpu().numpy()
+	logit = F.softmax(W_user, dim=1).data.cpu().numpy()
+
+	return logit, loss
 
 ################################## deprecated code
 '''
