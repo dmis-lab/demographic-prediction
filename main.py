@@ -26,10 +26,11 @@ def get_args():
 	parser.add_argument('--sample_type', type=str, default='full')
 
 # task settings
+	parser.add_argument('--partial-ratio', type=str, default='50')
 	parser.add_argument('--partial-training', type=int, default=1)
 	parser.add_argument('--partial-eval', type=int, default=1)
 	parser.add_argument('--task-type', type=str, default='new_user',
-						help="[partial50, new_user]")
+						help="[partial, new_user]")
 	parser.add_argument('--tasks', type=int, nargs='+')
 
 # optimizations
@@ -63,6 +64,8 @@ def get_args():
 # model's parameters
 	parser.add_argument('--model-type', type=str, default='TAN',
 						help="[POP, SVD_str, Average, RNN, TAN]")
+	parser.add_argument('--loss-type', type=str, default='likelihood',
+							help="[classification, likelihood]")
 	parser.add_argument('--rnn-type', type=str, default='LSTM')
 	parser.add_argument('--rnn-size', type=int, default=70)
 	parser.add_argument('--rnn-layer', type=int, default=2)
@@ -144,40 +147,54 @@ def run_experiment(args, logger):
 
 		tr_t0 = time.clock()
 		tr_loss, tr_hm, \
-		tr_macP, tr_macR, tr_macF1, tr_wP, tr_wR, tr_wF1 = exp.run_epoch(epoch, train_loader, sample_attr,
-														args.data_sampling, trainable=True)
+		tr_macPs, tr_macRs, tr_macF1s, tr_wPs, tr_wRs, tr_wF1s = \
+											exp.run_epoch(epoch, train_loader, sample_attr,
+											args.data_sampling, trainable=True)
 		tr_t1 = time.clock()
 
 		va_t0 = time.clock()
 		va_loss, va_hm, \
-		va_macP, va_macR, va_macF1, va_wP, va_wR, va_wF1 = exp.run_epoch(epoch, test_loader, sample_attr,
-														args.data_sampling, trainable=False)
+		va_macPs, va_macRs, va_macF1s, va_wPs, va_wRs, va_wF1s = \
+										exp.run_epoch(epoch, test_loader, sample_attr,
+										args.data_sampling, trainable=False)
 		va_t1 = time.clock()
+		
+		# print training scores
 		logger.info("### Training # Loss={:5.3f}, time:{:5.2}, Hamming={:2.3f}"
 					.format(tr_loss, tr_t1-tr_t0, tr_hm))
-		logger.info("# macro - macP:{:2.3f}, macR:{:2.3f}, macF1:{:2.3f}"
-					.format(tr_macP, tr_macR, tr_macF1))
-		logger.info("# weighted - wP:{:2.3f}, wR:{:2.3f}, wF1:{:2.3f} \n"
-					.format(tr_wP, tr_wR, tr_wF1))
+		for idx, tr_macP, tr_macR, tr_macF1, tr_wP, tr_wR, tr_wF1 \
+			in zip(list(range(len(tr_macPs))), tr_macPs, tr_macRs, tr_macF1s, tr_wPs, tr_wRs, tr_wF1s):
+			if idx == 0: logger.info("<TOTAL>")
+			else: logger.info("<attribute {}>".format(idx))
+			logger.info("# macro - macP:{:2.3f}, macR:{:2.3f}, macF1:{:2.3f}"
+						.format(tr_macP, tr_macR, tr_macF1))
+			logger.info("# weighted - wP:{:2.3f}, wR:{:2.3f}, wF1:{:2.3f} \n"
+						.format(tr_wP, tr_wR, tr_wF1))
+		
+		# print val/test scores
 		logger.info("%%% Validation % Loss={:5.3f}, time:{:5.2}, Hamming={:2.3f}"
 					.format(va_loss, va_t1-va_t0, va_hm))
-		logger.info("% macro - macP:{:2.3f}, macR:{:2.3f}, macF1:{:2.3f}"
-					.format(va_macP, va_macR, va_macF1))
-		logger.info("% weighted - wP:{:2.3f}, wR:{:2.3f}, wF1:{:2.3f} \n"
-					.format(va_wP, va_wR, va_wF1))
+		for idx, va_macP, va_macR, va_macF1, va_wP, va_wR, va_wF1 \
+			in zip(list(range(len(va_macPs))), va_macPs, va_macRs, va_macF1s, va_wPs, va_wRs, va_wF1s):
+			if idx == 0: logger.info("<TOTAL>")
+			else: logger.info("<attribute {}>".format(idx))
+			logger.info("% macro - macP:{:2.3f}, macR:{:2.3f}, macF1:{:2.3f}"
+						.format(va_macP, va_macR, va_macF1))
+			logger.info("% weighted - wP:{:2.3f}, wR:{:2.3f}, wF1:{:2.3f} \n"
+						.format(va_wP, va_wR, va_wF1))
 
 		# early stop
-		if max_score < va_wF1:
+		if max_score < va_wF1s[0]:
 			max_epoch = epoch+1
-			max_score = va_wF1
+			max_score = va_wF1s[0]
 			max_loss = va_loss
 			max_hm = va_hm
-			max_macP = va_macP
-			max_macR = va_macR
-			max_macF1 = va_macF1
-			max_wP = va_wP
-			max_wR = va_wR
-			max_wF1 = va_wF1
+			max_macP = va_macPs[0]
+			max_macR = va_macRs[0]
+			max_macF1 = va_macF1s[0]
+			max_wP = va_wPs[0]
+			max_wR = va_wRs[0]
+			max_wF1 = va_wF1s[0]
 			stop_cnt = 0
 		else:
 			# lr decay

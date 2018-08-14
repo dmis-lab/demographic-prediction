@@ -46,14 +46,14 @@ class Experiment:
 			if args.model_type!='TAN':
 				for tasks in tasks_list:
 					self.model.append(AvgPooling(logger, self.dict.__len__(),
-								args.share_emb, args.uniq_input,
-								args.item_emb_size, Dict.attr_len, args.learning_form,
+								args.share_emb, args.uniq_input, args.item_emb_size,
+								Dict.attr_len, args.learning_form, args.loss_type,
 								args.partial_training, args.use_negsample, tasks=tasks).cuda())
 			else:
 				for tasks in tasks_list:
 					self.model.append(TANDemoPredictor(logger, self.dict.__len__(), args.item_emb_size,
 									args.share_emb, args.share_emb, args.uniq_input,
-									args.attention_layer, Dict.attr_len, args.learning_form,
+									args.attention_layer, Dict.attr_len, args.learning_form, args.loss_type,
 									args.use_negsample, args.partial_training, tasks = tasks).cuda())
 
 		build_models([self.tasks])
@@ -100,9 +100,12 @@ class Experiment:
 			self.ypc_counter.append(0)
 			self.ytc_counter.append(0)
 
-		self.y_em_counter = Counter()
-		self.yp_counter = Counter()
-		self.yt_counter = Counter()
+		self.y_em_counter, self.yp_counter, self.yt_counter = [],[],[]
+		for _ in range(len(self.attr_len)+1):
+			self.y_em_counter.append(Counter())
+			self.yp_counter.append(Counter())
+			self.yt_counter.append(Counter())
+
 		self.hm_acc = self.num_users = 0
 		self.attr_em = np.zeros(len(self.attr_len)).astype(int)
 		self.attr_cnt = [0 if i in self.tasks else 1 for i in range(len(self.attr_len))]
@@ -130,12 +133,12 @@ class Experiment:
 					if not a_idx in model.tasks:
 						delete_idx.extend(list(range(start, end)))
 					start += al
-				
+
 				onehot = np.delete(batch[4], delete_idx, 1)
 				observed = np.delete(batch[5], delete_idx, 1)
 				logit, loss = model((epoch, i+1),
-									(batch[0], batch[1], batch[2], batch[3], onehot, observed),
-									batch[6], trainable)
+									(batch[0], batch[1], batch[2], batch[3], onehot, observed, batch[6]),
+									batch[7], trainable)
 				#if self.step_count % self.args.vis_per_step == 0 and not trainable:
 				#	self.summary(loss, self.step_count, False)
 
@@ -174,16 +177,21 @@ class Experiment:
 			self.accumulate_score(f_logit, onehot, observed, self.tasks, trainable, sample_type)
 
 			if (i+1) % self.args.print_per_step == 0:
-				hm, macP, macR, macF1, wP, wR, wF1 = self.get_score()
+				hm, macPs, macRs, macF1s, wPs, wRs, wF1s = self.get_score()
 				t1 = time.clock()
 				self.logger.info("< Step {} > Loss={:5.3f}, time:{:5.2}, Hamming={:2.3f}"
 							.format(self.step, loss_sum/self.step, t1-t0, hm))
-				self.logger.info("macro - macP:{:2.3f}, macR:{:2.3f}, macF1:{:2.3f}"
-							.format(macP, macR, macF1))
-				self.logger.info("weighted - wP:{:2.3f}, wR:{:2.3f}, wF1:{:2.3f}"
-							.format(wP, wR, wF1))
-				self.logger.info("Accuracy - gender:{:3.1f}, marital:{:3.1f}, age:{:3.1f}, income:{:3.1f}, edu:{:3.1f} \n"
+				for idx, macP, macR, macF1, wP, wR, wF1 \
+					in zip(list(range(len(macPs))), macPs, macRs, macF1s, wPs, wRs, wF1s):
+					if idx == 0: self.logger.info("<TOTAL>")
+					else: self.logger.info("<attribute {}>".format(idx))
+					self.logger.info("macro - macP:{:2.3f}, macR:{:2.3f}, macF1:{:2.3f}"
+								.format(macP, macR, macF1))
+					self.logger.info("weighted - wP:{:2.3f}, wR:{:2.3f}, wF1:{:2.3f}"
+								.format(wP, wR, wF1))
+				
 				#self.logger.info("Accuracy - gender:{:3.1f}, age:{:3.1f}, marital:{:3.1f} \n"
+				self.logger.info("Accuracy - gender:{:3.1f}, marital:{:3.1f}, age:{:3.1f}, income:{:3.1f}, edu:{:3.1f} \n"
 									.format(100*self.attr_em[0]/self.attr_cnt[0],
 											100*self.attr_em[1]/self.attr_cnt[1],
 											100*self.attr_em[2]/self.attr_cnt[2],
@@ -191,8 +199,8 @@ class Experiment:
 											100*self.attr_em[4]/self.attr_cnt[4]))
 		print('pred :', self.ypc_counter)
 		print('true :', self.ytc_counter)
-		self.logger.info("Accuracy - gender:{:3.1f}, marital:{:3.1f}, age:{:3.1f}, income:{:3.1f}, edu:{:3.1f} \n"
 		#self.logger.info("Accuracy - gender:{:3.1f}, age:{:3.1f}, marital:{:3.1f} \n"
+		self.logger.info("Accuracy - gender:{:3.1f}, marital:{:3.1f}, age:{:3.1f}, income:{:3.1f}, edu:{:3.1f} \n"
 							.format(100*self.attr_em[0]/self.attr_cnt[0],
 									100*self.attr_em[1]/self.attr_cnt[1],
 									100*self.attr_em[2]/self.attr_cnt[2],
@@ -200,16 +208,14 @@ class Experiment:
 									100*self.attr_em[4]/self.attr_cnt[4]))
 		#for name, param in model.named_parameters():
 		#	print(name, torch.norm(param))
-		hm, macP, macR, macF1, wP, wR, wF1 = self.get_score()
+		hm, macPs, macRs, macF1s, wPs, wRs, wF1s = self.get_score()
 		#if not trainable:
 		#	self.summary(loss, self.step_count, True)
-		return loss_sum / num_steps, hm, macP, macR, macF1, wP, wR, wF1
+		return loss_sum / num_steps, hm, macPs, macRs, macF1s, wPs, wRs, wF1s
 
 	def accumulate_score(self, logit, onehot, observed, tasks, trainable, sample_type):
 		if not self.args.partial_eval: observed = np.ones_like(observed)
 
-		y_pred, y_true = [],[]
-		y_pred_f, y_true_f = [],[]
 		y_numbering = np.asarray([[j if l else 0 for j, l in enumerate(oh)] \
 								for i, oh in enumerate(onehot)])
 
@@ -217,7 +223,7 @@ class Experiment:
 			popular = [[0, 1, 0, 1, 0, 0, 0, 1] \
 						for _ in range(y_numbering.shape[0])]
 			logit = popular
-		
+
 		for b_idx, ob in enumerate(observed):
 			pred, true = [],[]
 			start = 0
@@ -233,30 +239,26 @@ class Experiment:
 						self.attr_em[a_idx] += 1
 					pred.append(p)
 					true.append(t)
+					
+					self.yp_counter[a_idx+1][p] += 1
+					self.yt_counter[a_idx+1][t] += 1
+					if np.array_equal(p, t):
+						self.y_em_counter[a_idx+1][t] += 1
+
+					self.ypc_counter[p] += 1
+					self.ytc_counter[t] += 1
 				start += al
 
 			if pred and true:
-				y_pred.append(pred)
-				y_true.append(true)
+				self.yp_counter[0][str(pred)] += 1
+				self.yt_counter[0][str(true)] += 1
+				if np.array_equal(pred, true):
+					self.y_em_counter[0][str(true)] += 1
+				
+				# calculate and accumulate hamming loss
+				self.hm_acc += hamming_loss(true, pred)
 
-		self.num_users += len(y_true)
-
-		##
-		for full in y_pred:
-			for attr in full:
-				self.ypc_counter[attr] += 1
-		for full in y_true:
-			for attr in full:
-				self.ytc_counter[attr] += 1
-		##
-
-		for y in zip(y_pred, y_true):
-			self.yp_counter[str(y[0])] += 1
-			self.yt_counter[str(y[1])] += 1
-			if np.array_equal(y[0], y[1]):
-				self.y_em_counter[str(y[1])] += 1
-			# calculate and accumulate hamming loss
-			self.hm_acc += hamming_loss(y[1], y[0])
+				self.num_users += 1
 
 	def get_score(self):
 		# for divide-by-zero exception
@@ -265,36 +267,47 @@ class Experiment:
 
 		hm_loss = self.hm_acc / num_users
 
-		macP = macR = macF1 = wP = wR = wF1 = 0
+		macPs, macRs, macF1s, wPs, wRs, wF1s = [],[],[],[],[],[]
 
 		# macro and weighted Precision
-		for y, cnt in self.yp_counter.items():
-			if y in self.y_em_counter.keys():
-				macP += (self.y_em_counter[y] / cnt)
-				if y in self.yt_counter.keys():
-					wP += (self.y_em_counter[y] / cnt) * self.yt_counter[y]
-		macP /= len(self.yt_counter)
-		wP /= num_users
+		for a_idx in range(len(self.attr_len)+1):
+			macP = macR = macF1 = wP = wR = wF1 = 0
+			for y, cnt in self.yp_counter[a_idx].items():
+				if y in self.y_em_counter[a_idx].keys():
+					macP += (self.y_em_counter[a_idx][y] / cnt)
+					if y in self.yt_counter[a_idx].keys():
+						wP += (self.y_em_counter[a_idx][y] / cnt) * self.yt_counter[a_idx][y]
+			macP /= len(self.yt_counter[a_idx])
+			wP /= num_users
+			macPs.append(macP)
+			wPs.append(wP)
 
 		# macro and weighted Recall
-		for y, cnt in self.yt_counter.items():
-			if y in self.y_em_counter.keys():
-				wR += self.y_em_counter[y]
-				macR += (self.y_em_counter[y] / cnt)
-		macR /= len(self.yt_counter)
-		wR /= num_users
+		for a_idx in range(len(self.attr_len)+1):
+			macP = macR = macF1 = wP = wR = wF1 = 0
+			for y, cnt in self.yt_counter[a_idx].items():
+				if y in self.y_em_counter[a_idx].keys():
+					wR += self.y_em_counter[a_idx][y]
+					macR += (self.y_em_counter[a_idx][y] / cnt)
+			macR /= len(self.yt_counter[a_idx])
+			wR /= num_users
+			macRs.append(macR)
+			wRs.append(wR)
 
 		# calculate F1 using computed precision and recall.
 		# this code includes exception.
-		if macP == 0 and macR == 0:
-			macP = macR = macF1 = 0
-		else:
-			macF1 = (2 * macP * macR) / (macP + macR)
-		if wP == 0 and wR == 0:
-			wP = wR = wF1 = 0
-		else:
-			wF1 = (2 * wP * wR) / (wP + wR)
-		return hm_loss, macP, macR, macF1, wP, wR, wF1
+		for macP, macR, wP, wR in zip(macPs, macRs, wPs, wRs):
+			if macP == 0 and macR == 0:
+				macF1 = 0
+			else:
+				macF1 = (2 * macP * macR) / (macP + macR)
+			if wP == 0 and wR == 0:
+				wF1 = 0
+			else:
+				wF1 = (2 * wP * wR) / (wP + wR)
+			macF1s.append(macF1)
+			wF1s.append(wF1)
+		return hm_loss, macPs, macRs, macF1s, wPs, wRs, wF1s
 
 
 	def summary(self, loss, step, epoch_end):

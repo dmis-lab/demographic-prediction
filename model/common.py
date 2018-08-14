@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
-
+import sys
 
 def combinate(list1, list2):
 	out = []
@@ -68,6 +68,22 @@ def compute_loss(WU, full_label, start, end, weight=None):
 	logit = W_user.data.cpu().numpy()
 	logit = F.softmax(W_user, dim=1).data.cpu().numpy()
 	return logit, loss / batch_size
+
+def compute_cross_entropy(WU, full_label, start, end, loss_criterion):
+	W_user = WU.transpose(1,0)[start:end].transpose(1,0)
+	y = full_label.transpose(1,0)[start:end].transpose(1,0).cpu().numpy()
+
+	c_idx = [i for i, ob in enumerate(y.sum(1)) if ob]
+	y_c = y[c_idx]
+	W_c = W_user[c_idx]
+
+	y_c = torch.from_numpy(np.argmax(y_c, 1)).cuda().long()
+	loss = loss_criterion(W_c, y_c)
+
+	logit = W_user.data.cpu().numpy()
+	logit = F.softmax(W_user, dim=1).data.cpu().numpy()
+
+	return logit, loss
 
 ################################## deprecated code
 '''

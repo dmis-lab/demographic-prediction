@@ -19,12 +19,13 @@ torch.set_printoptions(threshold=5000)
 
 class TANDemoPredictor(nn.Module):
 	def __init__(self, logger, len_dict, item_emb_size, share_emb, share_attention,
-				uniq_input, attention_layer, attr_len, learning_form,
+				uniq_input, attention_layer, attr_len, learning_form, loss_type,
 				use_negsample, partial_training, tasks=[0,1,2]):
 		super(TANDemoPredictor, self).__init__()
 
 		self.logger = logger
 		self.attr_len = attr_len
+		self.loss_type = loss_type
 		self.cum_len = np.concatenate(([0], np.cumsum(np.asarray(attr_len)[tasks])))
 		self.use_negsample = use_negsample
 		self.attention_layer = attention_layer
@@ -47,28 +48,28 @@ class TANDemoPredictor(nn.Module):
 
 		else:
 			self.item_emb = nn.ModuleList([nn.Embedding(len_dict, item_emb_size, padding_idx=0)
-										for _ in range(3)])
+										for _ in range(5)])
 
 		# choose the way to represent users given the histories of them
 		if attention_layer == 1:
 			if self.share_att:
 				self.item_att_W = nn.Linear(item_emb_size, 1)
 			else:
-				self.item_att_W = nn.ModuleList([nn.Linear(item_emb_size, 1) for i in range(3)])
+				self.item_att_W = nn.ModuleList([nn.Linear(item_emb_size, 1) for i in range(5)])
 
 
 		elif attention_layer == 2 and learning_form=='structured':
-			self.item_att_W = nn.ModuleList([nn.Linear(item_emb_size, 1) for i in range(3)])
+			self.item_att_W = nn.ModuleList([nn.Linear(item_emb_size, 1) for i in range(5)])
 			self.attr_att_W = nn.Linear(item_emb_size,1)
 
 		else: # attention_layer == 2 and learning_form=='seperated'
-			self.item_att_W = nn.ModuleList([nn.Linear(item_emb_size, 1) for i in range(3)])
-			self.attr_att_W = nn.ModuleList([nn.Linear(item_emb_size, 1) for i in range(3)])
+			self.item_att_W = nn.ModuleList([nn.Linear(item_emb_size, 1) for i in range(5)])
+			self.attr_att_W = nn.ModuleList([nn.Linear(item_emb_size, 1) for i in range(5)])
 
 		# appropriate prediction layer for output type
 		if learning_form == 'seperated':
 			if share_emb:
-				size = user_size*3
+				size = user_size*5
 			else:
 				size = user_size
 			self.W_all = nn.ModuleList()
@@ -77,7 +78,7 @@ class TANDemoPredictor(nn.Module):
 					self.W_all.append(nn.Linear(size, attr_len[i], bias=False))
 		else:
 			# structured prediction
-			self.W = nn.Linear(user_size*3, label_size, bias=False)
+			self.W = nn.Linear(user_size*5, label_size, bias=False)
 
 		# generate all the possible structured vectors
 		all_attr = []
@@ -165,7 +166,7 @@ class TANDemoPredictor(nn.Module):
 
 				if self.share_att:
 					rep, att = get_attention(self.item_att_W, embed)
-					for i in range(3):
+					for i in range(5):
 						attr_rep.append(rep.unsqueeze(2))
 						att_scores.append(att)
 
@@ -215,10 +216,10 @@ class TANDemoPredictor(nn.Module):
 		# change all observe for new_user
 		if not self.partial_training:
 			ob = (torch.ones(ob.size())).float().cuda()
-		
+
 		# get negative samples
 		#neg_samples = draw_neg_sample(x.size(0), self.attr_len, y, ob)
-		
+
 		# represent items
 		if self.share_emb:
 			embed = self.item_emb(x)
@@ -233,7 +234,7 @@ class TANDemoPredictor(nn.Module):
 
 		else:
 			embeds, uniq_embs = [], []
-			for i in range(3):
+			for i in range(5):
 				embed = self.item_emb[i](x)
 				uniq_emb = self.item_emb[i](x_uniq)
 				embeds.append(embed)
@@ -285,11 +286,60 @@ class TANDemoPredictor(nn.Module):
 						W_user = W(user_rep[:,:self.item_emb_size])
 					else:
 						W_user = torch.cat((W_user, W(user_rep[:,i*self.item_emb_size:(i+1)*self.item_emb_size])), 1)
-		
+
 		# masking to distinguish between known and unknown attributes
 		W_compact = W_user * ob
 		y_c = y * ob
 
+		if self.loss_type == 'classification':
+			loss = 0
+			for i, t in enumerate([0,1,2,3,4]):
+				lg, ls = compute_cross_entropy(W_user, y_c, self.cum_len[i], self.cum_len[i+1], self.loss_criterion)
+				loss += ls
+
+				if i == 0:
+					logit = lg
+				else:
+					logit = np.concatenate((logit, lg), 1)
+
+		elif self.use_negsample:
+			# using negative sampling for efficient optimization
+			neg_samples = draw_neg_sample(x.size(0), self.attr_len, y, ob)
+			neg_logs = []
+			for idx, w_c in enumerate(W_compact):
+				neg = neg_samples[idx].cuda()
+				neg_logs.append(F.sigmoid(-(neg*w_c).sum(0)).log())
+			neg_loss = torch.stack(neg_logs).sum(0)
+			pos_loss = F.sigmoid((W_compact*y_c).sum(1)).log().sum(0)
+			loss = -torch.sum(pos_loss+neg_loss)/W_compact.size(0)
+			logit = W_user.data.cpu().numpy()
+		else:
+			# all attr are observed in new-user prediction
+			loss = 0
+			for i, t in enumerate(self.tasks):
+				#if t == 0:
+				#    weight = Variable(torch.from_numpy(np.asarray([1, 2]))).float().cuda()
+				#else: weight = None
+				weight = None
+				lg, ls = compute_loss(W_user, y, self.cum_len[i], self.cum_len[i+1], weight)
+				loss += ls
+				if i == 0:
+					logit = lg
+				else:
+					logit = np.concatenate((logit, lg), 1)
+
+		'''
+		if not trainable:
+			if self.uniq_input:
+				self.visualize(x_uniq, att_scores, num_purchase, y, logit, vis_file)
+			else:
+				self.visualize(x, att_scores, num_purchase, y, logit, vis_file)
+				'''
+
+		return logit, loss
+
+
+		'''
 		# all attr are observed in new-user prediction
 		loss = 0
 		for i, t in enumerate(self.tasks):
@@ -304,10 +354,5 @@ class TANDemoPredictor(nn.Module):
 			else:
 				logit = np.concatenate((logit, lg), 1)
 
-		if not trainable:
-			if self.uniq_input:
-				self.visualize(x_uniq, att_scores, num_purchase, y, logit, vis_file)
-			else:
-				self.visualize(x, att_scores, num_purchase, y, logit, vis_file)
-
 		return logit, loss
+		'''
