@@ -148,35 +148,35 @@ def run_experiment(args, logger):
 		tr_t0 = time.clock()
 		tr_loss, tr_hm, \
 		tr_macPs, tr_macRs, tr_macF1s, tr_wPs, tr_wRs, tr_wF1s = \
-											exp.run_epoch(epoch, train_loader, sample_attr,
+											exp.run_epoch(epoch, train_loader, args.dataset, sample_attr,
 											args.data_sampling, trainable=True)
 		tr_t1 = time.clock()
 
 		va_t0 = time.clock()
 		va_loss, va_hm, \
 		va_macPs, va_macRs, va_macF1s, va_wPs, va_wRs, va_wF1s = \
-										exp.run_epoch(epoch, test_loader, sample_attr,
+										exp.run_epoch(epoch, test_loader, args.dataset, sample_attr,
 										args.data_sampling, trainable=False)
 		va_t1 = time.clock()
-		
+
 		# print training scores
 		logger.info("### Training # Loss={:5.3f}, time:{:5.2}, Hamming={:2.3f}"
 					.format(tr_loss, tr_t1-tr_t0, tr_hm))
 		for idx, tr_macP, tr_macR, tr_macF1, tr_wP, tr_wR, tr_wF1 \
 			in zip(list(range(len(tr_macPs))), tr_macPs, tr_macRs, tr_macF1s, tr_wPs, tr_wRs, tr_wF1s):
-			if idx == 0: logger.info("<TOTAL>")
+			if idx == 0: logger.info("<TOTAL>-----------------------")
 			else: logger.info("<attribute {}>".format(idx))
 			logger.info("# macro - macP:{:2.3f}, macR:{:2.3f}, macF1:{:2.3f}"
 						.format(tr_macP, tr_macR, tr_macF1))
 			logger.info("# weighted - wP:{:2.3f}, wR:{:2.3f}, wF1:{:2.3f} \n"
 						.format(tr_wP, tr_wR, tr_wF1))
-		
+
 		# print val/test scores
 		logger.info("%%% Validation % Loss={:5.3f}, time:{:5.2}, Hamming={:2.3f}"
 					.format(va_loss, va_t1-va_t0, va_hm))
 		for idx, va_macP, va_macR, va_macF1, va_wP, va_wR, va_wF1 \
 			in zip(list(range(len(va_macPs))), va_macPs, va_macRs, va_macF1s, va_wPs, va_wRs, va_wF1s):
-			if idx == 0: logger.info("<TOTAL>")
+			if idx == 0: logger.info("<TOTAL>-----------------------")
 			else: logger.info("<attribute {}>".format(idx))
 			logger.info("% macro - macP:{:2.3f}, macR:{:2.3f}, macF1:{:2.3f}"
 						.format(va_macP, va_macR, va_macF1))

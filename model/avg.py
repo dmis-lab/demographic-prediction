@@ -28,8 +28,10 @@ class AvgPooling(nn.Module):
 		self.loss_type = loss_type
 
 		if loss_type == 'classification':
-			weight = torch.load('./data/preprd/beiren/class_loss_weight')
-			self.loss_criterion = nn.ModuleList([nn.CrossEntropyLoss(weight[i]) for i in range(5)])
+			weight = torch.load('./data/preprd/ocb/class_loss_weight')
+			#self.loss_criterion = nn.ModuleList([nn.CrossEntropyLoss(weight[i]) for i in range(len(attr_len))])
+			self.loss_criterion = nn.ModuleList([nn.CrossEntropyLoss() for i in range(len(attr_len))])
+
 		user_size = item_emb_size
 		label_size = sum([al for i, al in enumerate(attr_len)])
 
@@ -37,7 +39,7 @@ class AvgPooling(nn.Module):
 			self.item_emb = nn.Embedding(len_dict, item_emb_size, padding_idx=0)
 		else:
 			self.item_emb = nn.ModuleList([nn.Embedding(len_dict, item_emb_size, padding_idx=0)
-										for _ in range(5)])
+										for _ in range(len(attr_len))])
 
 		if learning_form == 'seperated':
 			self.W_all = nn.ModuleList()
@@ -48,7 +50,7 @@ class AvgPooling(nn.Module):
 			if self.share_emb:
 				self.W = nn.Linear(item_emb_size, label_size, bias=True)
 			else:
-				self.W = nn.Linear(item_emb_size*5, label_size, bias=True)
+				self.W = nn.Linear(item_emb_size*len(attr_len), label_size, bias=True)
 
 		# choose a learning method
 
@@ -61,14 +63,15 @@ class AvgPooling(nn.Module):
 		self.all_possible = np.asarray(reduce(combinate, all_attr))
 
 	def forward(self, process, batch, rep=None, sampling=False):
-		x, x_mask, x_uniq, x_uniq_mask, y, ob, loss_weight = batch
+		x, x_mask, x_uniq, x_uniq_mask, y, ob = batch
 		epoch, step = process
 		x = x.cuda()
 		x_mask = x_mask.cuda()
+		x_uniq = x_uniq.cuda()
+		x_uniq_mask = x_uniq_mask.cuda()
 		x_len = torch.sum(x_mask.long(), 1)
 		y = torch.from_numpy(y).cuda().float()
 		ob = torch.from_numpy(ob).cuda().float()
-		loss_weight = torch.from_numpy(loss_weight).cuda().float()
 
 		# change all observe for new_user
 		if not self.partial_training:
@@ -88,7 +91,7 @@ class AvgPooling(nn.Module):
 			user_rep.data = torch.tensor(rep).cuda().float()
 		else:
 			user_reps = []
-			for i in range(5):
+			for i in range(len(self.item_emb)):
 				embed = self.item_emb[i](x)
 				user_rep = []
 				for i, emb in enumerate(embed):
@@ -123,7 +126,7 @@ class AvgPooling(nn.Module):
 
 		if self.loss_type == 'classification':
 			loss = 0
-			for i, t in enumerate([0,1,2,3,4]):
+			for i, t in enumerate(self.tasks):
 				lg, ls = compute_cross_entropy(W_user, y_c, self.cum_len[i], self.cum_len[i+1], self.loss_criterion[i])
 				loss += ls
 
@@ -140,9 +143,10 @@ class AvgPooling(nn.Module):
 				neg = neg_samples[idx].cuda()
 				neg_logs.append(F.sigmoid(-(neg*w_c).sum(0)).log())
 			neg_loss = torch.stack(neg_logs).sum(0)
-			pos_loss = F.sigmoid((W_compact*y_c).sum(1)).log().sum(0) * loss_weight*5
+			pos_loss = F.sigmoid((W_compact*y_c).sum(1)).log().sum(0)
 			loss = (-torch.sum(pos_loss+neg_loss)/W_compact.size(0))
 			logit = W_user.data.cpu().numpy()
+
 		else:
 			# all attr are observed in new-user prediction
 			loss = 0
@@ -151,6 +155,7 @@ class AvgPooling(nn.Module):
 				#    weight = Variable(torch.from_numpy(np.asarray([1, 2]))).float().cuda()
 				#else: weight = None
 				weight = None
+
 				lg, ls = compute_loss(W_user, y, self.cum_len[i], self.cum_len[i+1], weight)
 				loss += ls
 				if i == 0:
