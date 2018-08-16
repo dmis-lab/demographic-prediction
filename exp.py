@@ -52,7 +52,7 @@ class Experiment:
 			else:
 				for tasks in tasks_list:
 					self.model.append(TANDemoPredictor(logger, self.dict.__len__(), args.item_emb_size,
-									args.share_emb, args.share_emb, args.uniq_input,
+									args.share_emb, args.share_attention, args.uniq_input,
 									args.attention_layer, Dict.attr_len, args.learning_form, args.loss_type,
 									args.use_negsample, args.partial_training, tasks = tasks).cuda())
 
@@ -87,7 +87,7 @@ class Experiment:
 			for param_group in model.optimizer.param_groups:
 				param_group['lr'] *= self.args.lr_decay
 
-	def run_epoch(self, epoch, data_loader, sample_type, sampling=False, trainable=False):
+	def run_epoch(self, epoch, data_loader, dataset, sample_type, sampling=False, trainable=False):
 		num_samples = data_loader.dataset.__len__()
 		num_steps = (num_samples // self.args.batch_size) + 1
 		self.num_steps = num_steps
@@ -184,7 +184,7 @@ class Experiment:
 				for idx, macP, macR, macF1, wP, wR, wF1 \
 					in zip(list(range(len(macPs))), macPs, macRs, macF1s, wPs, wRs, wF1s):
 					if not self.args.print_attr_score and idx != 0: continue
-					if idx == 0: self.logger.info("<TOTAL>")
+					if idx == 0: self.logger.info("--------------------------<TOTAL>")
 					else: self.logger.info("<attribute {}>".format(idx))
 					self.logger.info("macro - macP:{:2.3f}, macR:{:2.3f}, macF1:{:2.3f}"
 								.format(macP, macR, macF1))
@@ -241,7 +241,7 @@ class Experiment:
 						self.attr_em[a_idx] += 1
 					pred.append(p)
 					true.append(t)
-					
+
 					self.yp_counter[a_idx+1][p] += 1
 					self.yt_counter[a_idx+1][t] += 1
 					if np.array_equal(p, t):
@@ -256,7 +256,7 @@ class Experiment:
 				self.yt_counter[0][str(true)] += 1
 				if np.array_equal(pred, true):
 					self.y_em_counter[0][str(true)] += 1
-				
+
 				# calculate and accumulate hamming loss
 				self.hm_acc += hamming_loss(true, pred)
 

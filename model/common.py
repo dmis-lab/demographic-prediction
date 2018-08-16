@@ -41,6 +41,9 @@ def compute_loss(WU, full_label, start, end, weight=None):
 	W_user = WU.transpose(1,0)[start:end].transpose(1,0)
 	y = full_label.transpose(1,0)[start:end].transpose(1,0)
 
+	logit = W_user.data.cpu().numpy()
+	logit = F.softmax(W_user, dim=1).data.cpu().numpy()
+
 	c_idx = [i for i, s in enumerate(W_user.sum(1).data.cpu().numpy()) if s]
 
 	if c_idx:
@@ -65,9 +68,9 @@ def compute_loss(WU, full_label, start, end, weight=None):
 	else:
 		loss = torch.tensor(0, requires_grad=True).float().cuda()
 		batch_size = 1
-	logit = W_user.data.cpu().numpy()
-	logit = F.softmax(W_user, dim=1).data.cpu().numpy()
+
 	return logit, loss / batch_size
+
 
 def compute_cross_entropy(WU, full_label, start, end, loss_criterion):
 	W_user = WU.transpose(1,0)[start:end].transpose(1,0)

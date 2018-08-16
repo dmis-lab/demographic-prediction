@@ -12,7 +12,7 @@ from random import randint
 import sys
 import time
 
-from .common import combinate, draw_neg_sample, compute_loss
+from .common import combinate, draw_neg_sample, compute_loss, compute_cross_entropy
 
 np.set_printoptions(threshold=np.inf)
 torch.set_printoptions(threshold=5000)
@@ -37,9 +37,14 @@ class TANDemoPredictor(nn.Module):
 		self.tasks = tasks
 		self.item_emb_size = item_emb_size
 		self.optimizer = None
+		if loss_type == 'classification':
+			weight = torch.load('./data/preprd/ocb/class_loss_weight')
+			#self.loss_criterion = nn.ModuleList([nn.CrossEntropyLoss(weight[i]) for i in range(len(attr_len))])
+			self.loss_criterion = nn.ModuleList([nn.CrossEntropyLoss() for i in range(len(attr_len))])
+
 		label_size = sum([al for i, al in enumerate(attr_len) if i in tasks])
-		with open('./data/preprd/ocb/idx2brand.pkl', 'rb') as f:
-			self.brand2idx = pickle.load(f)
+		#with open('./data/preprd/ocb/idx2brand.pkl', 'rb') as f:
+		#	self.brand2idx = pickle.load(f)
 
 		user_size = item_emb_size
 
@@ -48,28 +53,28 @@ class TANDemoPredictor(nn.Module):
 
 		else:
 			self.item_emb = nn.ModuleList([nn.Embedding(len_dict, item_emb_size, padding_idx=0)
-										for _ in range(5)])
+										for _ in range(len(attr_len))])
 
 		# choose the way to represent users given the histories of them
 		if attention_layer == 1:
 			if self.share_att:
 				self.item_att_W = nn.Linear(item_emb_size, 1)
 			else:
-				self.item_att_W = nn.ModuleList([nn.Linear(item_emb_size, 1) for i in range(5)])
+				self.item_att_W = nn.ModuleList([nn.Linear(item_emb_size, 1) for i in range(len(attr_len))])
 
 
 		elif attention_layer == 2 and learning_form=='structured':
-			self.item_att_W = nn.ModuleList([nn.Linear(item_emb_size, 1) for i in range(5)])
+			self.item_att_W = nn.ModuleList([nn.Linear(item_emb_size, 1) for i in range(len(attr_len))])
 			self.attr_att_W = nn.Linear(item_emb_size,1)
 
 		else: # attention_layer == 2 and learning_form=='seperated'
-			self.item_att_W = nn.ModuleList([nn.Linear(item_emb_size, 1) for i in range(5)])
-			self.attr_att_W = nn.ModuleList([nn.Linear(item_emb_size, 1) for i in range(5)])
+			self.item_att_W = nn.ModuleList([nn.Linear(item_emb_size, 1) for i in range(len(attr_len))])
+			self.attr_att_W = nn.ModuleList([nn.Linear(item_emb_size, 1) for i in range(len(attr_len))])
 
 		# appropriate prediction layer for output type
 		if learning_form == 'seperated':
 			if share_emb:
-				size = user_size*5
+				size = user_size*len(attr_len)
 			else:
 				size = user_size
 			self.W_all = nn.ModuleList()
@@ -78,7 +83,8 @@ class TANDemoPredictor(nn.Module):
 					self.W_all.append(nn.Linear(size, attr_len[i], bias=False))
 		else:
 			# structured prediction
-			self.W = nn.Linear(user_size*5, label_size, bias=False)
+			self.W = nn.Linear(user_size*len(attr_len), label_size, bias=False)
+			#self.W = nn.Linear(user_size, label_size, bias=False)
 
 		# generate all the possible structured vectors
 		all_attr = []
@@ -166,17 +172,17 @@ class TANDemoPredictor(nn.Module):
 
 				if self.share_att:
 					rep, att = get_attention(self.item_att_W, embed)
-					for i in range(5):
-						attr_rep.append(rep.unsqueeze(2))
-						att_scores.append(att)
-
+					#for i in range(len(self.tasks)):
+					#	attr_rep.append(rep.unsqueeze(2))
+					#	att_scores.append(att)
+					user_rep = rep
 				else:
 					for i, attr_w in enumerate(self.item_att_W):
 						rep, att = get_attention(attr_w, embed)
 						attr_rep.append(rep.unsqueeze(2))
 						att_scores.append(att)
 					# user_rep : [B, 3(num attr), emb]
-				user_rep = torch.cat(attr_rep, 2).view(batch,-1)
+					user_rep = torch.cat(attr_rep, 2).view(batch,-1)
 			else:
 
 				batch = embed[0].size(0)
@@ -234,7 +240,7 @@ class TANDemoPredictor(nn.Module):
 
 		else:
 			embeds, uniq_embs = [], []
-			for i in range(5):
+			for i in range(len(self.item_emb)):
 				embed = self.item_emb[i](x)
 				uniq_emb = self.item_emb[i](x_uniq)
 				embeds.append(embed)
@@ -293,8 +299,8 @@ class TANDemoPredictor(nn.Module):
 
 		if self.loss_type == 'classification':
 			loss = 0
-			for i, t in enumerate([0,1,2,3,4]):
-				lg, ls = compute_cross_entropy(W_user, y_c, self.cum_len[i], self.cum_len[i+1], self.loss_criterion)
+			for i, t in enumerate(self.tasks):
+				lg, ls = compute_cross_entropy(W_user, y_c, self.cum_len[i], self.cum_len[i+1], self.loss_criterion[i])
 				loss += ls
 
 				if i == 0:
