@@ -41,14 +41,14 @@ class Dictionary(object):
 class DemoAttrDataset(Dataset):
 	def __init__(self, logger, task_type, data_type, data_path, aug_data_path=None):
 		self.data_type = data_type
-		self.history = self.label = self.observed = self.loss_weight = None
+		self.history = self.label = self.observed = None
 		self.read(logger, task_type, data_path, aug_data_path)
 
 	def __len__(self):
 		return len(self.label)
 
 	def __getitem__(self, index):
-		return self.history[index], self.label[index], self.observed[index], self.loss_weight[index], self.svd_rep[index]
+		return self.history[index], self.label[index], self.observed[index], self.svd_rep[index]
 
 	def read(self, logger, task_type, data_path, aug_data_path=None):
 		data = json.load(open(data_path))
@@ -57,12 +57,10 @@ class DemoAttrDataset(Dataset):
 			data['history'] += aug_data['history']
 			data['label'] += aug_data['label']
 			data['observed'] += aug_data['observed']
-			data['loss_weight'] += aug_data['loss_weight']
 
-		history, label, observed, loss_weight = [],[],[],[]
+		history, label, observed = [],[],[]
 		history = data['history']
 		label = data['label']
-		loss_weight = data['loss_weight']
 
 		if 'observed' in data.keys():
 			observed = data['observed']
@@ -74,7 +72,6 @@ class DemoAttrDataset(Dataset):
 		self.label_all = np.asarray(label)[shuffled_idx].tolist()
 		# observed ex : [1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 		self.observed_all = np.asarray(observed)[shuffled_idx].tolist()
-		self.loss_weight_all = np.asarray(loss_weight)[shuffled_idx].tolist()
 		if task_type == 'partial' and any([True if t in self.data_type else False for t in ['val', 'test']]):
 			self.observed_all = np.invert(np.asarray(self.observed_all).astype(bool)).astype(int).tolist()
 
@@ -89,7 +86,6 @@ class DemoAttrDataset(Dataset):
 		history_all = copy.deepcopy(self.history_all)
 		label_all = copy.deepcopy(self.label_all)
 		observed_all = copy.deepcopy(self.observed_all)
-		loss_weight_all = copy.deepcopy(self.loss_weight_all)
 
 		shuffled_idx = list(range(len(history_all)))
 
@@ -99,7 +95,6 @@ class DemoAttrDataset(Dataset):
 		self.history_all = np.asarray(history_all)[shuffled_idx].tolist()
 		self.label_all = np.asarray(label_all)[shuffled_idx].tolist()
 		self.observed_all = np.asarray(observed_all)[shuffled_idx].tolist()
-		self.loss_weight_all = np.asarray(loss_weight_all)[shuffled_idx].tolist()
 
 		for i in range(len(shuffled_idx)):
 			j = shuffled_idx.index(i)
@@ -112,27 +107,21 @@ class DemoAttrDataset(Dataset):
 			if observed_all[i] != self.observed_all[j]:
 				print(observed_all[i])
 				print(self.observed_all[j])
-			if loss_weight_all[i] != self.loss_weight_all[j]:
-				print(loss_weight_all[i])
-				print(self.loss_weight_all[j])
 
 	def reset(self):
 		self.history = copy.deepcopy(self.history_all)
 		self.label = copy.deepcopy(self.label_all)
 		self.observed = copy.deepcopy(self.observed_all)
-		self.loss_weight = copy.deepcopy(self.loss_weight_all)
 
 	def sample_subset(self, num_data):
 		history_all = copy.deepcopy(self.history_all)
 		label_all = copy.deepcopy(self.label_all)
 		observed_all = copy.deepcopy(self.observed_all)
-		loss_weight_all = copy.deepcopy(self.loss_weight_all)
-		self.history, self.label, self.observed, self.loss_weight = [],[],[],[]
+		self.history, self.label, self.observed = [],[],[]
 		for i in range(num_data):
 			self.history.append(history_all[i])
 			self.label.append(label_all[i])
 			self.observed.append(observed_all[i])
-			self.loss_weight.append(loss_weight_all[i])
 
 	def sample_data_cls(self):
 		#self.shuffle_data()
@@ -435,14 +424,13 @@ class DemoAttrDataset(Dataset):
 		return [len(h) for h in self.history]
 
 def batchify(batch):
-	history, label, observed, loss_weight = [],[],[],[]
+	history, label, observed = [],[],[]
 	svd_rep = []
 	for ex in batch:
 		history.append(ex[0])
 		label.append(ex[1])
 		observed.append(ex[2])
-		loss_weight.append(ex[3])
-		svd_rep.append(ex[4])
+		svd_rep.append(ex[3])
 
 	# padding
 	maxlen_history = max([len(h) for h in history])
@@ -458,9 +446,8 @@ def batchify(batch):
 		x_uniq_mask[i, :len(set(h))].fill_(1)
 	y = np.asarray(label)
 	ob = np.asarray(observed)
-	loss_weight = np.asarray(loss_weight)
 	svd_rep = np.asarray(svd_rep)
-	return x, x_mask, x_uniq, x_uniq_mask, y, ob, loss_weight, svd_rep
+	return x, x_mask, x_uniq, x_uniq_mask, y, ob, svd_rep
 
 class SortedBatchSampler(Sampler):
 	def __init__(self, lengths, batch_size, shuffle=True):

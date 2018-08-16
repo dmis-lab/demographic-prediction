@@ -137,8 +137,8 @@ class Experiment:
 				onehot = np.delete(batch[4], delete_idx, 1)
 				observed = np.delete(batch[5], delete_idx, 1)
 				logit, loss = model((epoch, i+1),
-									(batch[0], batch[1], batch[2], batch[3], onehot, observed, batch[6]),
-									batch[7], trainable)
+									(batch[0], batch[1], batch[2], batch[3], onehot, observed),
+									batch[6], trainable)
 				#if self.step_count % self.args.vis_per_step == 0 and not trainable:
 				#	self.summary(loss, self.step_count, False)
 
@@ -183,29 +183,31 @@ class Experiment:
 							.format(self.step, loss_sum/self.step, t1-t0, hm))
 				for idx, macP, macR, macF1, wP, wR, wF1 \
 					in zip(list(range(len(macPs))), macPs, macRs, macF1s, wPs, wRs, wF1s):
+					if not self.args.print_attr_score and idx != 0: continue
 					if idx == 0: self.logger.info("<TOTAL>")
 					else: self.logger.info("<attribute {}>".format(idx))
 					self.logger.info("macro - macP:{:2.3f}, macR:{:2.3f}, macF1:{:2.3f}"
 								.format(macP, macR, macF1))
 					self.logger.info("weighted - wP:{:2.3f}, wR:{:2.3f}, wF1:{:2.3f}"
 								.format(wP, wR, wF1))
-				
 				#self.logger.info("Accuracy - gender:{:3.1f}, age:{:3.1f}, marital:{:3.1f} \n"
+				#self.logger.info("Accuracy - gender:{:3.1f}, age:{:3.1f}, occupation:{:3.1f} \n"
 				self.logger.info("Accuracy - gender:{:3.1f}, marital:{:3.1f}, age:{:3.1f}, income:{:3.1f}, edu:{:3.1f} \n"
 									.format(100*self.attr_em[0]/self.attr_cnt[0],
 											100*self.attr_em[1]/self.attr_cnt[1],
-											100*self.attr_em[2]/self.attr_cnt[2],
-											100*self.attr_em[3]/self.attr_cnt[3],
-											100*self.attr_em[4]/self.attr_cnt[4]))
+											100*self.attr_em[2]/self.attr_cnt[2]))
+											#100*self.attr_em[3]/self.attr_cnt[3],
+											#100*self.attr_em[4]/self.attr_cnt[4]))
 		print('pred :', self.ypc_counter)
 		print('true :', self.ytc_counter)
 		#self.logger.info("Accuracy - gender:{:3.1f}, age:{:3.1f}, marital:{:3.1f} \n"
-		self.logger.info("Accuracy - gender:{:3.1f}, marital:{:3.1f}, age:{:3.1f}, income:{:3.1f}, edu:{:3.1f} \n"
+		self.logger.info("Accuracy - gender:{:3.1f}, age:{:3.1f}, occupation:{:3.1f} \n"
+		#self.logger.info("Accuracy - gender:{:3.1f}, marital:{:3.1f}, age:{:3.1f}, income:{:3.1f}, edu:{:3.1f} \n"
 							.format(100*self.attr_em[0]/self.attr_cnt[0],
 									100*self.attr_em[1]/self.attr_cnt[1],
-									100*self.attr_em[2]/self.attr_cnt[2],
-									100*self.attr_em[3]/self.attr_cnt[3],
-									100*self.attr_em[4]/self.attr_cnt[4]))
+									100*self.attr_em[2]/self.attr_cnt[2]))
+									#100*self.attr_em[3]/self.attr_cnt[3],
+									#100*self.attr_em[4]/self.attr_cnt[4]))
 		#for name, param in model.named_parameters():
 		#	print(name, torch.norm(param))
 		hm, macPs, macRs, macF1s, wPs, wRs, wF1s = self.get_score()

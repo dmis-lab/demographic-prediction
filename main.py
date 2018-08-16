@@ -17,7 +17,7 @@ def get_args():
 
 # data
 	parser.add_argument('--dataset', type=str, default='ocb',
-						help="[beiren, ocb]")
+						help="[beiren, ocb, movieLens]")
 	parser.add_argument('--data-path', type=str, default="./data/preprd/",
 						help="")
 	parser.add_argument('--rand-seed', type=int, default=1)
@@ -26,7 +26,6 @@ def get_args():
 	parser.add_argument('--sample_type', type=str, default='full')
 
 # task settings
-	parser.add_argument('--partial-ratio', type=str, default='50')
 	parser.add_argument('--partial-training', type=int, default=1)
 	parser.add_argument('--partial-eval', type=int, default=1)
 	parser.add_argument('--task-type', type=str, default='new_user',
@@ -77,6 +76,7 @@ def get_args():
 	parser.add_argument('--print-per-step', type=int, default=99999)
 	parser.add_argument('--vis-per-step', type=int, default=100)
 	parser.add_argument('--rand-search', type=int, default=0)
+	parser.add_argument('--print-attr-score', type=int, default=0)
 
 # regularization
 	parser.add_argument('--early-stop', type=str, default='va_wF1',
@@ -164,6 +164,7 @@ def run_experiment(args, logger):
 					.format(tr_loss, tr_t1-tr_t0, tr_hm))
 		for idx, tr_macP, tr_macR, tr_macF1, tr_wP, tr_wR, tr_wF1 \
 			in zip(list(range(len(tr_macPs))), tr_macPs, tr_macRs, tr_macF1s, tr_wPs, tr_wRs, tr_wF1s):
+			if not args.print_attr_score and idx != 0: continue
 			if idx == 0: logger.info("<TOTAL>")
 			else: logger.info("<attribute {}>".format(idx))
 			logger.info("# macro - macP:{:2.3f}, macR:{:2.3f}, macF1:{:2.3f}"
@@ -176,6 +177,7 @@ def run_experiment(args, logger):
 					.format(va_loss, va_t1-va_t0, va_hm))
 		for idx, va_macP, va_macR, va_macF1, va_wP, va_wR, va_wF1 \
 			in zip(list(range(len(va_macPs))), va_macPs, va_macRs, va_macF1s, va_wPs, va_wRs, va_wF1s):
+			if not args.print_attr_score and idx != 0: continue
 			if idx == 0: logger.info("<TOTAL>")
 			else: logger.info("<attribute {}>".format(idx))
 			logger.info("% macro - macP:{:2.3f}, macR:{:2.3f}, macF1:{:2.3f}"
@@ -224,6 +226,8 @@ def main():
 	if args.tasks == None and args.dataset == 'beiren':
 		args.tasks = [0,1,2,3,4]
 	elif args.tasks == None and args.dataset == 'ocb':
+		args.tasks = [0,1,2]
+	elif args.tasks == None and args.dataset == 'movieLens':
 		args.tasks = [0,1,2]
 
 #run_mfdm_exp(args)

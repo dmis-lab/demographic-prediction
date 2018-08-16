@@ -61,14 +61,13 @@ class AvgPooling(nn.Module):
 		self.all_possible = np.asarray(reduce(combinate, all_attr))
 
 	def forward(self, process, batch, rep=None, sampling=False):
-		x, x_mask, x_uniq, x_uniq_mask, y, ob, loss_weight = batch
+		x, x_mask, x_uniq, x_uniq_mask, y, ob = batch
 		epoch, step = process
 		x = x.cuda()
 		x_mask = x_mask.cuda()
 		x_len = torch.sum(x_mask.long(), 1)
 		y = torch.from_numpy(y).cuda().float()
 		ob = torch.from_numpy(ob).cuda().float()
-		loss_weight = torch.from_numpy(loss_weight).cuda().float()
 
 		# change all observe for new_user
 		if not self.partial_training:
@@ -140,7 +139,7 @@ class AvgPooling(nn.Module):
 				neg = neg_samples[idx].cuda()
 				neg_logs.append(F.sigmoid(-(neg*w_c).sum(0)).log())
 			neg_loss = torch.stack(neg_logs).sum(0)
-			pos_loss = F.sigmoid((W_compact*y_c).sum(1)).log().sum(0) * loss_weight*5
+			pos_loss = F.sigmoid((W_compact*y_c).sum(1)).log().sum(0)
 			loss = (-torch.sum(pos_loss+neg_loss)/W_compact.size(0))
 			logit = W_user.data.cpu().numpy()
 		else:
