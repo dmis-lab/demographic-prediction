@@ -72,8 +72,8 @@ class DemoAttrDataset(Dataset):
 		self.label_all = np.asarray(label)[shuffled_idx].tolist()
 		# observed ex : [1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 		self.observed_all = np.asarray(observed)[shuffled_idx].tolist()
-		if task_type == 'partial' and any([True if t in self.data_type else False for t in ['val', 'test']]):
-			self.observed_all = np.invert(np.asarray(self.observed_all).astype(bool)).astype(int).tolist()
+		#if task_type == 'partial' and any([True if t in self.data_type else False for t in ['val', 'test']]):
+		#	self.observed_all = np.invert(np.asarray(self.observed_all).astype(bool)).astype(int).tolist()
 
 		with open('./save/rep/svd_matrix', 'rb') as f:
 			self.svd_rep = pickle.load(f)

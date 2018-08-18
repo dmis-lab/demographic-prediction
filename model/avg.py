@@ -50,7 +50,8 @@ class AvgPooling(nn.Module):
 			if self.share_emb:
 				self.W = nn.Linear(item_emb_size, label_size, bias=True)
 			else:
-				self.W = nn.Linear(item_emb_size*len(attr_len), label_size, bias=True)
+				#self.W = nn.Linear(item_emb_size*len(attr_len), label_size, bias=True)
+				self.W = nn.Linear(item_emb_size, label_size, bias=True)
 
 		# choose a learning method
 
@@ -156,7 +157,7 @@ class AvgPooling(nn.Module):
 				#else: weight = None
 				weight = None
 
-				lg, ls = compute_loss(W_user, y, self.cum_len[i], self.cum_len[i+1], weight)
+				lg, ls = compute_loss(W_compact, y, self.cum_len[i], self.cum_len[i+1], weight)
 				loss += ls
 				if i == 0:
 					logit = lg

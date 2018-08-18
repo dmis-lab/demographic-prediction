@@ -327,7 +327,7 @@ class TANDemoPredictor(nn.Module):
 				#    weight = Variable(torch.from_numpy(np.asarray([1, 2]))).float().cuda()
 				#else: weight = None
 				weight = None
-				lg, ls = compute_loss(W_user, y, self.cum_len[i], self.cum_len[i+1], weight)
+				lg, ls = compute_loss(W_compact, y, self.cum_len[i], self.cum_len[i+1], weight)
 				loss += ls
 				if i == 0:
 					logit = lg

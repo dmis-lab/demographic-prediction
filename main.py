@@ -201,7 +201,7 @@ def run_experiment(args, logger):
 			exp.adjust_lr()
 			stop_cnt += 1
 		if args.model_type == 'POP': break
-		if stop_cnt >= 50 and args.early_stop:
+		if stop_cnt >= 5 and args.early_stop:
 			return max_epoch, max_loss, max_hm, \
 					max_macP, max_macR, max_macF1, \
 					max_wP, max_wR, max_wF1
