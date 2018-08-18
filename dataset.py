@@ -108,7 +108,6 @@ class DemoAttrDataset(Dataset):
 				print(observed_all[i])
 				print(self.observed_all[j])
 
-
 	def reset(self):
 		self.history = copy.deepcopy(self.history_all)
 		self.label = copy.deepcopy(self.label_all)
