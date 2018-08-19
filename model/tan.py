@@ -43,29 +43,30 @@ class TANDemoPredictor(nn.Module):
 			self.loss_criterion = nn.ModuleList([nn.CrossEntropyLoss() for i in range(len(attr_len))])
 
 		label_size = sum([al for i, al in enumerate(attr_len) if i in tasks])
-		#with open('./data/preprd/ocb/idx2brand.pkl', 'rb') as f:
-		#	self.brand2idx = pickle.load(f)
+		with open('./data/preprd/ocb/idx2brand.pkl', 'rb') as f:
+			self.brand2idx = pickle.load(f)
 
 		user_size = item_emb_size
 
 		if share_emb:
 			self.item_emb = nn.Embedding(len_dict, item_emb_size, padding_idx=0)
+			self.item_emb.weight = nn.Parameter(torch.load('./save/emb/avg'))
+			self.item_emb.weight.requires_grad=False
 
 		else:
 			self.item_emb = nn.ModuleList([nn.Embedding(len_dict, item_emb_size, padding_idx=0)
 										for _ in range(len(attr_len))])
-
 		# choose the way to represent users given the histories of them
 		if attention_layer == 1:
 			if self.share_att:
-				self.item_att_W = nn.Linear(item_emb_size, 1)
+				self.item_att_W = nn.Linear(item_emb_size, 1, bias=False)
 			else:
-				self.item_att_W = nn.ModuleList([nn.Linear(item_emb_size, 1) for i in range(len(attr_len))])
+				self.item_att_W = nn.ModuleList([nn.Linear(item_emb_size, 1, bias=False) for i in range(len(attr_len))])
 
 
 		elif attention_layer == 2 and learning_form=='structured':
 			self.item_att_W = nn.ModuleList([nn.Linear(item_emb_size, 1) for i in range(len(attr_len))])
-			self.attr_att_W = nn.Linear(item_emb_size,1)
+			self.attr_att_W = nn.ModuleList([nn.Linear(item_emb_size, 1) for i in range(len(attr_len))])
 
 		else: # attention_layer == 2 and learning_form=='seperated'
 			self.item_att_W = nn.ModuleList([nn.Linear(item_emb_size, 1) for i in range(len(attr_len))])
@@ -84,7 +85,7 @@ class TANDemoPredictor(nn.Module):
 		else:
 			# structured prediction
 			self.W = nn.Linear(user_size*len(attr_len), label_size, bias=False)
-			#self.W = nn.Linear(user_size, label_size, bias=False)
+			#self.W = nn.Linear(user_size, label_size, bias=True)
 
 		# generate all the possible structured vectors
 		all_attr = []
@@ -99,7 +100,7 @@ class TANDemoPredictor(nn.Module):
 	def init_item_emb_weight(self, glove_mat):
 		glove_mat = torch.from_numpy(glove_mat).cuda()
 		self.glove_emb.weight.data = glove_mat
-		self.glove_emb.weight.requires_grad = True
+		self.glove_emb.weight.requires_grad = False
 
 
 	def visualize(self, brand, att_scores, num_purchase, labels, logits, vis_file):
@@ -154,14 +155,23 @@ class TANDemoPredictor(nn.Module):
 				str_tmp = '\t'.join(str_tmp) + '\n'
 				vis_file.write(str_tmp)
 
-	def forward(self, process, batch, vis_file, trainable=False):
+	def forward(self, process, batch, svd, vis_file=None, trainable=False):
 
-		def get_attention(w, emb):
+		def get_attention(w, embed):
 			att_u = F.tanh(w(embed))
 			att_score = F.softmax(att_u,1)
+			#att_score = torch.ones(embed.size()).cuda()
+
 			attnd_emb = embed * att_score
-			rep = F.relu(torch.sum(attnd_emb, 1))
-			return rep, att_score
+			#attnd_emb = embed
+
+			#rep = F.relu(torch.mean(attnd_emb, 1))
+			user_rep = []
+			for i, emb in enumerate(attnd_emb):
+				user_rep.append(torch.sum(emb, 0)/x_len[i].float())
+			user_rep = torch.stack(user_rep, 0)
+			#rep = (torch.mean(attnd_emb, 1))
+			return user_rep, att_score
 
 		def item_attention(embed, share_emb):
 			# embed : [B,K,emb] --> att_u [B,K,1] for each attribute
@@ -257,8 +267,6 @@ class TANDemoPredictor(nn.Module):
 		#neg_samples = self.draw_sample(x.size(0), y)
 
 
-		#W_compact = W_user * ob
-
 		if self.attention_layer==2:
 			# with item level & attr self attention
 			# attr_rep : [B, K, 5(num attr)]
@@ -267,10 +275,14 @@ class TANDemoPredictor(nn.Module):
 			# user_attr_rep : [B, emb] * 5
 			user_rep = attr_attention(attr_rep, self.attr_att_W)
 
+		#user_rep = []
+		#for i, emb in enumerate(embed):
+		#	user_rep.append(torch.sum(emb, 0)/x_len[i].float())
+		#user_rep = torch.stack(user_rep, 0)
+
 		# appropriate prediction layer for each output type
 		if self.learning_form == 'structured':
 			W_user = self.W(user_rep)
-
 		else:
 			'''
 			user_attr_rep = user_rep.transpose(0, 1)
@@ -333,17 +345,15 @@ class TANDemoPredictor(nn.Module):
 					logit = lg
 				else:
 					logit = np.concatenate((logit, lg), 1)
-
-		'''
+					'''
 		if not trainable:
 			if self.uniq_input:
 				self.visualize(x_uniq, att_scores, num_purchase, y, logit, vis_file)
 			else:
 				self.visualize(x, att_scores, num_purchase, y, logit, vis_file)
-				'''
 
 		return logit, loss
-
+		'''
 
 		'''
 		# all attr are observed in new-user prediction

@@ -197,6 +197,7 @@ def run_experiment(args, logger):
 			max_wP = va_wPs[0]
 			max_wR = va_wRs[0]
 			max_wF1 = va_wF1s[0]
+			#model_params = exp.model.item_emb.weight
 			stop_cnt = 0
 		else:
 			# lr decay
@@ -204,6 +205,7 @@ def run_experiment(args, logger):
 			stop_cnt += 1
 		if args.model_type == 'POP': break
 		if stop_cnt >= 5 and args.early_stop:
+			#torch.save('./save/emb/avg')
 			return max_epoch, max_loss, max_hm, \
 					max_macP, max_macR, max_macF1, \
 					max_wP, max_wR, max_wF1
@@ -229,7 +231,6 @@ def main():
 		args.tasks = [0,1,2]
 	elif args.tasks == None and args.dataset == 'movieLens':
 		args.tasks = [0,1,2]
-
 #run_mfdm_exp(args)
 
 # set random seeds

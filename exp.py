@@ -133,7 +133,6 @@ class Experiment:
 					if not a_idx in model.tasks:
 						delete_idx.extend(list(range(start, end)))
 					start += al
-
 				onehot = np.delete(batch[4], delete_idx, 1)
 				observed = np.delete(batch[5], delete_idx, 1)
 				logit, loss = model((epoch, i+1),

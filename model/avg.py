@@ -89,7 +89,7 @@ class AvgPooling(nn.Module):
 			user_rep = torch.stack(user_rep, 0)
 
 			# using svd
-			user_rep.data = torch.tensor(rep).cuda().float()
+			#user_rep.data = torch.tensor(rep).cuda().float()
 		else:
 			user_reps = []
 			for i in range(len(self.item_emb)):
@@ -163,5 +163,5 @@ class AvgPooling(nn.Module):
 					logit = lg
 				else:
 					logit = np.concatenate((logit, lg), 1)
-
+		torch.save(self.item_emb.weight, './save/emb/avg')
 		return logit, loss
