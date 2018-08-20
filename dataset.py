@@ -61,7 +61,7 @@ class DemoAttrDataset(Dataset):
 		history, label, observed = [],[],[]
 		history = data['history']
 		label = data['label']
-
+		
 		if 'observed' in data.keys():
 			observed = data['observed']
 		else:

@@ -93,6 +93,8 @@ class Experiment:
 		self.num_steps = num_steps
 		self.logger.info("== {} mode : {} steps for {} samples == \n"
 			.format(data_loader.dataset.data_type, num_steps, num_samples))
+		self.vis_file = open("./save/att_vis/att_vis_{}_{}.tsv".format(
+						time.strftime("%H%M", time.gmtime()), epoch), 'a')
 
 		self.ytc_counter = []
 		self.ypc_counter = []
@@ -137,7 +139,7 @@ class Experiment:
 				observed = np.delete(batch[5], delete_idx, 1)
 				logit, loss = model((epoch, i+1),
 									(batch[0], batch[1], batch[2], batch[3], onehot, observed),
-									batch[6], trainable)
+									batch[6], self.vis_file, trainable)
 				#if self.step_count % self.args.vis_per_step == 0 and not trainable:
 				#	self.summary(loss, self.step_count, False)
 

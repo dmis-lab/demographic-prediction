@@ -50,8 +50,6 @@ class TANDemoPredictor(nn.Module):
 
 		if share_emb:
 			self.item_emb = nn.Embedding(len_dict, item_emb_size, padding_idx=0)
-			self.item_emb.weight = nn.Parameter(torch.load('./save/emb/avg'))
-			self.item_emb.weight.requires_grad=False
 
 		else:
 			self.item_emb = nn.ModuleList([nn.Embedding(len_dict, item_emb_size, padding_idx=0)
@@ -59,23 +57,24 @@ class TANDemoPredictor(nn.Module):
 		# choose the way to represent users given the histories of them
 		if attention_layer == 1:
 			if self.share_att:
-				self.item_att_W = nn.Linear(item_emb_size, 1, bias=False)
+				self.item_att_W = nn.Linear(item_emb_size, 1)
 			else:
-				self.item_att_W = nn.ModuleList([nn.Linear(item_emb_size, 1, bias=False) for i in range(len(attr_len))])
+				self.item_att_W = nn.ModuleList([nn.Linear(item_emb_size, 1) for i in range(len(attr_len))])
 
 
 		elif attention_layer == 2 and learning_form=='structured':
 			self.item_att_W = nn.ModuleList([nn.Linear(item_emb_size, 1) for i in range(len(attr_len))])
-			self.attr_att_W = nn.ModuleList([nn.Linear(item_emb_size, 1) for i in range(len(attr_len))])
+			self.attr_att_W = nn.ModuleList([nn.Linear(item_emb_size*len(attr_len), item_emb_size) for i in range(len(attr_len))])
 
 		else: # attention_layer == 2 and learning_form=='seperated'
 			self.item_att_W = nn.ModuleList([nn.Linear(item_emb_size, 1) for i in range(len(attr_len))])
-			self.attr_att_W = nn.ModuleList([nn.Linear(item_emb_size, 1) for i in range(len(attr_len))])
+			self.attr_att_W = nn.ModuleList([nn.Linear(item_emb_size*len(attr_len), item_emb_size) for i in range(len(attr_len))])
 
 		# appropriate prediction layer for output type
 		if learning_form == 'seperated':
 			if share_emb:
-				size = user_size*len(attr_len)
+				#size = user_size*len(attr_len)
+				size = user_size
 			else:
 				size = user_size
 			self.W_all = nn.ModuleList()
@@ -100,7 +99,7 @@ class TANDemoPredictor(nn.Module):
 	def init_item_emb_weight(self, glove_mat):
 		glove_mat = torch.from_numpy(glove_mat).cuda()
 		self.glove_emb.weight.data = glove_mat
-		self.glove_emb.weight.requires_grad = False
+		self.glove_emb.weight.requires_grad = True
 
 
 	def visualize(self, brand, att_scores, num_purchase, labels, logits, vis_file):
@@ -155,7 +154,7 @@ class TANDemoPredictor(nn.Module):
 				str_tmp = '\t'.join(str_tmp) + '\n'
 				vis_file.write(str_tmp)
 
-	def forward(self, process, batch, svd, vis_file=None, trainable=False):
+	def forward(self, process, batch, rep, vis_file, trainable=False):
 
 		def get_attention(w, embed):
 			att_u = F.tanh(w(embed))
@@ -165,13 +164,13 @@ class TANDemoPredictor(nn.Module):
 			attnd_emb = embed * att_score
 			#attnd_emb = embed
 
-			#rep = F.relu(torch.mean(attnd_emb, 1))
-			user_rep = []
-			for i, emb in enumerate(attnd_emb):
-				user_rep.append(torch.sum(emb, 0)/x_len[i].float())
-			user_rep = torch.stack(user_rep, 0)
+			rep = F.relu(torch.sum(attnd_emb, 1))
+			#user_rep = []
+			#for i, emb in enumerate(attnd_emb):
+			#	user_rep.append(F.relu(torch.sum(emb, 0)/x_len[i].float()))
+			#user_rep = torch.stack(user_rep, 0)
 			#rep = (torch.mean(attnd_emb, 1))
-			return user_rep, att_score
+			return rep, att_score
 
 		def item_attention(embed, share_emb):
 			# embed : [B,K,emb] --> att_u [B,K,1] for each attribute
@@ -213,14 +212,24 @@ class TANDemoPredictor(nn.Module):
 			if self.learning_form=='seperated':
 				user_rep = []
 				for attr_w in attr_att_W:
-					user_rep.append(get_attention(attr_w, embed).unsqueeze(2))
+					rep, att_score = get_attention(attr_w, embed)
+					user_rep.append(rep.unsqueeze(2))
 				user_rep = torch.cat(user_rep, 2).view(batch,-1)
 			else:
 				user_rep = get_attention(attr_att_W, embed)
 			return user_rep
 
 
+		def relation_network(attr_rep, attr_att_W):
+			# attr_rep : [Batch, len(attr) * emb size]
+			user_rep = []
+			for attr_w in attr_att_W:
+				user_rep.append(F.sigmoid(attr_w(attr_rep)))
+			user_rep = torch.cat(user_rep, 1)
+			return user_rep
+
 		x, x_mask, x_uniq, x_uniq_mask, y, ob = batch
+
 		epoch, step = process
 		x = Variable(x).cuda()
 		x_mask = Variable(x_mask).cuda()
@@ -266,14 +275,14 @@ class TANDemoPredictor(nn.Module):
 		# get negative samples
 		#neg_samples = self.draw_sample(x.size(0), y)
 
-
 		if self.attention_layer==2:
 			# with item level & attr self attention
 			# attr_rep : [B, K, 5(num attr)]
 			attr_rep = user_rep
 			# get self attended attribute vector
 			# user_attr_rep : [B, emb] * 5
-			user_rep = attr_attention(attr_rep, self.attr_att_W)
+			#user_rep = attr_attention(attr_rep, self.attr_att_W)
+			user_rep = relation_network(attr_rep, self.attr_att_W)
 
 		#user_rep = []
 		#for i, emb in enumerate(embed):
@@ -293,12 +302,12 @@ class TANDemoPredictor(nn.Module):
 					W_user = torch.cat((W_user, W(user_attr_rep[i])), 1)
 			'''
 			if self.share_emb:
-				for i, W in enumerate(self.W_all):
-					if i == 0:
-						W_user = W(user_rep)
-					else:
-						W_user = torch.cat((W_user, W(user_rep)), 1)
-			else:
+				#for i, W in enumerate(self.W_all):
+				#	if i == 0:
+				#		W_user = W(user_rep)
+				#	else:
+				#		W_user = torch.cat((W_user, W(user_rep)), 1)
+			#else:
 				for i, W in enumerate(self.W_all):
 					if i == 0:
 						W_user = W(user_rep[:,:self.item_emb_size])
@@ -345,7 +354,7 @@ class TANDemoPredictor(nn.Module):
 					logit = lg
 				else:
 					logit = np.concatenate((logit, lg), 1)
-					'''
+
 		if not trainable:
 			if self.uniq_input:
 				self.visualize(x_uniq, att_scores, num_purchase, y, logit, vis_file)
@@ -353,7 +362,6 @@ class TANDemoPredictor(nn.Module):
 				self.visualize(x, att_scores, num_purchase, y, logit, vis_file)
 
 		return logit, loss
-		'''
 
 		'''
 		# all attr are observed in new-user prediction

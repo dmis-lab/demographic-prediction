@@ -29,13 +29,14 @@ def get_args():
 	parser.add_argument('--partial-training', type=int, default=1)
 	parser.add_argument('--partial-eval', type=int, default=1)
 	parser.add_argument('--task-type', type=str, default='new_user',
-						help="[partial, new_user]")
+						help="[partial50, new_user]")
 	parser.add_argument('--tasks', type=int, nargs='+')
 
 # optimizations
 	parser.add_argument('--opt', type=str, default='Adam',
 						help="Adam / RMSprop / SGD / Adagrad / Adadelta / Adamax")
 	parser.add_argument('--amsgrad', type=int, default=0)
+	parser.add_argument('--learning-rate', type=float, default=5e-3)
 	parser.add_argument('--momentum', type=float, default=0.9)
 	parser.add_argument('--use-negsample', type=int, default=0)
 
@@ -45,7 +46,7 @@ def get_args():
 	parser.add_argument('--share-attention', type=int, default=0)
 	parser.add_argument('--attention-layer', type=int, default=1,
 						help="you can choose [1 or 2] when using TAN model")
-	parser.add_argument('--learning-form', type=str, default='seperated',
+	parser.add_argument('--learning-form', type=str, default='separated',
 						help="[separated, structured]")
 
 # embeddings
@@ -53,7 +54,6 @@ def get_args():
 
 # training parameters
 	parser.add_argument('--batch-size', type=int, default=64)
-	parser.add_argument('--learning-rate', type=float, default=5e-3)
 	parser.add_argument('--user_emb_dim', type=int, default=100)
 	parser.add_argument('--num_negs', type=int, default=1)
 	parser.add_argument('--max-epoch', type=int, default=20000)
@@ -204,6 +204,7 @@ def run_experiment(args, logger):
 			exp.adjust_lr()
 			stop_cnt += 1
 		if args.model_type == 'POP': break
+
 		if stop_cnt >= 5 and args.early_stop:
 			#torch.save('./save/emb/avg')
 			return max_epoch, max_loss, max_hm, \
