@@ -62,25 +62,27 @@ class TANDemoPredictor(nn.Module):
 				self.item_att_W = nn.ModuleList([nn.Linear(item_emb_size, 1) for i in range(len(attr_len))])
 
 
-		elif attention_layer == 2 and learning_form=='structured':
+		elif attention_layer == 2:
 			self.item_att_W = nn.ModuleList([nn.Linear(item_emb_size, 1) for i in range(len(attr_len))])
 			self.attr_att_W = nn.ModuleList([nn.Linear(item_emb_size*len(attr_len), item_emb_size) for i in range(len(attr_len))])
 
-		else: # attention_layer == 2 and learning_form=='seperated'
-			self.item_att_W = nn.ModuleList([nn.Linear(item_emb_size, 1) for i in range(len(attr_len))])
-			self.attr_att_W = nn.ModuleList([nn.Linear(item_emb_size*len(attr_len), item_emb_size) for i in range(len(attr_len))])
+			rn_hidden = int(item_emb_size*len(attr_len) / 2)
+			self.rn = nn.Sequential(
+                            nn.Linear(int(item_emb_size*len(attr_len)), rn_hidden),
+                            nn.ReLU(),
+                            nn.Linear(rn_hidden, rn_hidden),
+                            nn.ReLU(),
+                            nn.Linear(rn_hidden, rn_hidden),
+                            nn.ReLU(),
+                            nn.Linear(rn_hidden, item_emb_size),
+                            nn.ReLU())
 
 		# appropriate prediction layer for output type
 		if learning_form == 'seperated':
-			if share_emb:
-				#size = user_size*len(attr_len)
-				size = user_size
-			else:
-				size = user_size
 			self.W_all = nn.ModuleList()
 			for i, al in enumerate(attr_len):
 				if i in tasks:
-					self.W_all.append(nn.Linear(size, attr_len[i], bias=False))
+					self.W_all.append(nn.Linear(user_size, attr_len[i], bias=False))
 		else:
 			# structured prediction
 			self.W = nn.Linear(user_size*len(attr_len), label_size, bias=False)
@@ -223,10 +225,18 @@ class TANDemoPredictor(nn.Module):
 		def relation_network(attr_rep, attr_att_W):
 			# attr_rep : [Batch, len(attr) * emb size]
 			user_rep = []
-			for attr_w in attr_att_W:
-				user_rep.append(F.sigmoid(attr_w(attr_rep)))
+			#for attr_w in attr_att_W:
+			#	user_rep.append(F.sigmoid(attr_w(attr_rep)))
+			#	print(attr_w(attr_rep).size())
+			self.rn(attr_rep)
+
 			user_rep = torch.cat(user_rep, 1)
 			return user_rep
+
+
+		#def combined_prediction(attr_rep):
+			# attr_rep : [Batch, len(attr) * emb size]
+		#	attr_rep = attr_rep.view(-1, len(self.attr_len), self.item_emb_size)
 
 		x, x_mask, x_uniq, x_uniq_mask, y, ob = batch
 
@@ -282,8 +292,8 @@ class TANDemoPredictor(nn.Module):
 			# get self attended attribute vector
 			# user_attr_rep : [B, emb] * 5
 			#user_rep = attr_attention(attr_rep, self.attr_att_W)
-			user_rep = relation_network(attr_rep, self.attr_att_W)
-
+			#user_rep = relation_network(attr_rep, self.attr_att_W)
+			user_rep = self.rn(attr_rep)
 		#user_rep = []
 		#for i, emb in enumerate(embed):
 		#	user_rep.append(torch.sum(emb, 0)/x_len[i].float())
@@ -302,12 +312,12 @@ class TANDemoPredictor(nn.Module):
 					W_user = torch.cat((W_user, W(user_attr_rep[i])), 1)
 			'''
 			if self.share_emb:
-				#for i, W in enumerate(self.W_all):
-				#	if i == 0:
-				#		W_user = W(user_rep)
-				#	else:
-				#		W_user = torch.cat((W_user, W(user_rep)), 1)
-			#else:
+				for i, W in enumerate(self.W_all):
+					if i == 0:
+						W_user = W(user_rep[:,:self.item_emb_size])
+					else:
+						W_user = torch.cat((W_user, W(user_rep[:,i*self.item_emb_size:(i+1)*self.item_emb_size])), 1)
+			else:
 				for i, W in enumerate(self.W_all):
 					if i == 0:
 						W_user = W(user_rep[:,:self.item_emb_size])
