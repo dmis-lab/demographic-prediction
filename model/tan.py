@@ -82,7 +82,7 @@ class TANDemoPredictor(nn.Module):
 			self.W_all = nn.ModuleList()
 			for i, al in enumerate(attr_len):
 				if i in tasks:
-					self.W_all.append(nn.Linear(user_size, attr_len[i], bias=False))
+					self.W_all.append(nn.Linear(user_size*len(attr_len), attr_len[i], bias=False))
 		else:
 			# structured prediction
 			self.W = nn.Linear(user_size*len(attr_len), label_size, bias=False)
@@ -234,10 +234,6 @@ class TANDemoPredictor(nn.Module):
 			return user_rep
 
 
-		#def combined_prediction(attr_rep):
-			# attr_rep : [Batch, len(attr) * emb size]
-		#	attr_rep = attr_rep.view(-1, len(self.attr_len), self.item_emb_size)
-
 		x, x_mask, x_uniq, x_uniq_mask, y, ob = batch
 
 		epoch, step = process
@@ -314,16 +310,27 @@ class TANDemoPredictor(nn.Module):
 			if self.share_emb:
 				for i, W in enumerate(self.W_all):
 					if i == 0:
-						W_user = W(user_rep[:,:self.item_emb_size])
+						W_user = W(user_rep)
 					else:
-						W_user = torch.cat((W_user, W(user_rep[:,i*self.item_emb_size:(i+1)*self.item_emb_size])), 1)
-			else:
-				for i, W in enumerate(self.W_all):
+						W_user = torch.cat((W_user, W(user_rep)), 1)
+					'''
 					if i == 0:
 						W_user = W(user_rep[:,:self.item_emb_size])
 					else:
 						W_user = torch.cat((W_user, W(user_rep[:,i*self.item_emb_size:(i+1)*self.item_emb_size])), 1)
-
+					'''
+			else:
+				for i, W in enumerate(self.W_all):
+					if i == 0:
+						W_user = W(user_rep)
+					else:
+						W_user = torch.cat((W_user, W(user_rep)), 1)
+					'''
+					if i == 0:
+						W_user = W(user_rep[:,:self.item_emb_size])
+					else:
+						W_user = torch.cat((W_user, W(user_rep[:,i*self.item_emb_size:(i+1)*self.item_emb_size])), 1)
+					'''
 		# masking to distinguish between known and unknown attributes
 		W_compact = W_user * ob
 		y_c = y * ob
