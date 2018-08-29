@@ -1,7 +1,7 @@
 from collections import Counter
 import sys
 
-name = '0704_4'
+name = '20180824-0f295f8b_2'
 
 lines = [line.strip() for line in open("./save/att_vis/att_vis_%s.tsv"%name).readlines()]
 
@@ -26,6 +26,7 @@ def normalize_weight(words, weights):
 
 divs = []
 for idx, line in enumerate(lines):
+    if idx == 2000: break
     label, pred, content, w1, w2, w3 = line.split("\t")
     words = content.split()
     w1 = w1.split()
@@ -52,24 +53,29 @@ for idx, line in enumerate(lines):
     
     label = label.replace('[','').replace(']','').replace(",",'').replace("'",'').split()
     pred = pred.replace('[','').replace(']','').replace(",",'').replace("'",'').split()
-    line = '<div stype><span>{}-th sample</span></div>'.format(idx+1)
-        +'<div style="border:1px solid; padding:5px; max-width:400px; width:30%; overflow:auto; height:auto; float:left;">'\
-        +'<span><b>Label: {}, Pred: {}</b></span>'\
-        +'<br><br>{}</div>'\
-        +'<div style="border:1px solid; padding:5px; max-width:400px; width:30%; overflow:auto; height:auto; float:left;">'\
-        +'<span><b>Label: {}, Pred: {}</b></span>'\
-        +'<br><br>{}</div>'\
-        +'<div style="border:1px solid; padding:5px; max-width:400px; width:30%; overflow:auto; height:auto; float:left;">'\
-        +'<span><b>Label: {}, Pred: {}</b></span>'\
-        +'<br><br>{}</div><div style="clear:both;"></div><br>'
-        .format(label[0], pred[0], make_span(content_set, weight1, 0, brand_counter), 
-                label[1], pred[1], make_span(content_set, weight2, 1, brand_counter), 
-                label[2], pred[2], make_span(content_set, weight3, 2, brand_counter))
+    line = '<div stype><span>the {}-th sample</span></div>'.format(idx+1)
+    line += '<div style="border:1px solid; padding:5px; max-width:400px; width:30%; overflow:auto; height:auto; float:left;">'
+    line += '<span><b>Label: {}, Pred: {}</b></span>'\
+            .format(label[0], pred[0])
+    line += '<br><br>{}</div>'\
+            .format(make_span(content_set, weight1, 0, brand_counter))
+    line += '<div style="border:1px solid; padding:5px; max-width:400px; width:30%; overflow:auto; height:auto; float:left;">'
+    line += '<span><b>Label: {}, Pred: {}</b></span>'\
+            .format(label[1], pred[1])
+    line += '<br><br>{}</div>'\
+            .format(make_span(content_set, weight2, 1, brand_counter))
+    line += '<div style="border:1px solid; padding:5px; max-width:400px; width:30%; overflow:auto; height:auto; float:left;">'
+    line += '<span><b>Label: {}, Pred: {}</b></span>'\
+            .format(label[2], pred[2])
+    line += '<br><br>{}</div>'\
+            .format(make_span(content_set, weight3, 2, brand_counter))
+    line += '<div style="clear:both;"></div><br>'
+
     # print line
     divs.append(line)
 
 html = "<html style='width:100%'><body>{}</body></html>".format("".join(divs))
-with open("visualize_%s.html"%name,"w") as f:
+with open("test.html","w") as f:
     f.write(html)
 
 

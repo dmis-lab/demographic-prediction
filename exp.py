@@ -44,13 +44,13 @@ class Experiment:
             if args.model_type!='TAN':
                 for tasks in tasks_list:
                     self.model.append(AvgPooling(logger, self.dict.__len__(),
-                                args.share_emb, args.uniq_input, args.item_emb_size,
+                                args.share_emb, args.item_emb_size,
                                 Dict.attr_len, args.learning_form, args.loss_type,
                                 args.partial_training, args.use_negsample, tasks=tasks).cuda())
             else:
                 for tasks in tasks_list:
                     self.model.append(TANDemoPredictor(logger, self.dict.__len__(), args.item_emb_size,
-                                    args.share_emb, args.share_attention, args.uniq_input,
+                                    args.share_emb, args.share_attention,
                                     args.attention_layer, Dict.attr_len, args.learning_form, args.loss_type,
                                     args.use_negsample, args.partial_training, tasks = tasks).cuda())
 
@@ -90,8 +90,8 @@ class Experiment:
         self.num_steps = num_steps
         self.logger.info("== {} mode : {} steps for {} samples == \n"
                         .format(data_loader.dataset.data_type, num_steps, num_samples))
-        self.vis_file = open("./save/att_vis/att_vis_{}_{}.tsv".format(
-                            time.strftime("%H%M", time.gmtime()), epoch), 'a')
+        self.vis_file = open("./save/att_vis/att_vis_{}_{}.tsv"
+                            .format(self.logger.name, epoch+1), 'a')
 
         self.ytc_counter = []
         self.ypc_counter = []
@@ -132,11 +132,11 @@ class Experiment:
                     if not a_idx in model.tasks:
                         delete_idx.extend(list(range(start, end)))
                     start += al
-                onehot = np.delete(batch[4], delete_idx, 1)
-                observed = np.delete(batch[5], delete_idx, 1)
+                onehot = np.delete(batch[2], delete_idx, 1)
+                observed = np.delete(batch[3], delete_idx, 1)
                 logit, loss = model((epoch, i+1),
-                                (batch[0], batch[1], batch[2], batch[3], onehot, observed),
-                                batch[6], self.vis_file, trainable)
+                                (batch[0], batch[1], onehot, observed),
+                                batch[4], self.vis_file, trainable)
                 #if self.step_count % self.args.vis_per_step == 0 and not trainable:
                 #	self.summary(loss, self.step_count, False)
 
