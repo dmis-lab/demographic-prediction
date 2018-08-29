@@ -373,4 +373,3 @@ class TANDemoPredictor(nn.Module):
 
         return logit, loss
         '''
-
