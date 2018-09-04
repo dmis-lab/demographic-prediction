@@ -19,7 +19,7 @@ torch.set_printoptions(threshold=5000)
 
 class TANDemoPredictor(nn.Module):
     def __init__(self, logger, len_dict, item_emb_size, share_emb, share_attention,
-                attention_layer, attr_len, learning_form, loss_type,
+                emb_transfer, attention_layer, attr_len, learning_form, loss_type,
                 use_negsample, partial_training, tasks=[0,1,2]):
         super(TANDemoPredictor, self).__init__()
 
@@ -31,13 +31,14 @@ class TANDemoPredictor(nn.Module):
         self.attention_layer = attention_layer
         self.partial_training = partial_training
         self.learning_form = learning_form
+        self.transfer = emb_transfer
         self.share_emb = share_emb
         self.share_att = share_attention
         self.tasks = tasks
         self.item_emb_size = item_emb_size
         self.optimizer = None
         if loss_type == 'classification':
-            weight = torch.load('./data/preprd/ocb/class_loss_weight')
+            #weight = torch.load('./data/preprd/ocb/class_loss_weight')
             #self.loss_criterion = nn.ModuleList([nn.CrossEntropyLoss(weight[i]) for i in range(len(attr_len))])
             self.loss_criterion = nn.ModuleList([nn.CrossEntropyLoss() for i in range(len(attr_len))])
 
@@ -49,10 +50,11 @@ class TANDemoPredictor(nn.Module):
 
         if share_emb:
             self.item_emb = nn.Embedding(len_dict, item_emb_size, padding_idx=0)
-
+            self.item_transfer = nn.ModuleList([nn.Linear(item_emb_size, item_emb_size) for i in range(len(attr_len))])
         else:
             self.item_emb = nn.ModuleList([nn.Embedding(len_dict, item_emb_size, padding_idx=0)
                                                                         for _ in range(len(attr_len))])
+
         # choose the way to represent users given the histories of them
         if attention_layer == 1:
             if self.share_att:
@@ -65,16 +67,6 @@ class TANDemoPredictor(nn.Module):
             self.item_att_W = nn.ModuleList([nn.Linear(item_emb_size, 1) for i in range(len(attr_len))])
             self.attr_att_W = nn.ModuleList([nn.Linear(item_emb_size*len(attr_len), item_emb_size) for i in range(len(attr_len))])
 
-            rn_hidden = int(item_emb_size*len(attr_len) / 2)
-            self.rn = nn.Sequential(
-                nn.Linear(int(item_emb_size*len(attr_len)), rn_hidden),
-                nn.ReLU(),
-                nn.Linear(rn_hidden, rn_hidden),
-                nn.ReLU(),
-                nn.Linear(rn_hidden, rn_hidden),
-                nn.ReLU(),
-                nn.Linear(rn_hidden, item_emb_size),
-                nn.ReLU())
 
         # appropriate prediction layer for output type
         if learning_form == 'separated':
@@ -157,7 +149,7 @@ class TANDemoPredictor(nn.Module):
     def forward(self, process, batch, rep, vis_file, trainable=False):
 
         def get_attention(w, embed, len):
-            att_u = F.tanh(w(embed)).squeeze(2)
+            att_u = F.relu(w(embed).squeeze(2))
             att_score = torch.zeros(att_u.size()).cuda()
             for i, l in enumerate(len):
                 candi = att_u[i][:l]
@@ -167,8 +159,10 @@ class TANDemoPredictor(nn.Module):
             attnd_emb = embed * att_score.unsqueeze(2)
             #attnd_emb = embed
 
-            rep = F.relu(torch.sum(attnd_emb, 1))
-            rep = F.dropout(rep, p=0.2)
+            rep = F.sigmoid(torch.sum(attnd_emb, 1))
+            #rep = torch.sum(attnd_emb, 1)
+            #rep = F.relu(torch.sum(attnd_emb, 1))
+            #rep = F.dropout(rep, p=0.2)
             #user_rep = []
             #for i, emb in enumerate(attnd_emb):
             #	user_rep.append(F.relu(torch.sum(emb, 0)/x_len[i].float()))
@@ -178,37 +172,19 @@ class TANDemoPredictor(nn.Module):
 
         def item_attention(embed, share_emb, len):
             # embed : [B,K,emb] --> att_u [B,K,1] for each attribute
-            if share_emb:
-                batch = embed.size(0)
-                attr_rep = []
-                att_scores = []
+            batch = embed[0].size(0)
+            attr_rep = []
+            att_scores = []
 
-                if self.share_att:
-                    rep, att = get_attention(self.item_att_W, embed, len)
-                    #for i in range(len(self.tasks)):
-                    #	attr_rep.append(rep.unsqueeze(2))
-                    #	att_scores.append(att)
-                    user_rep = rep
-                else:
-                    for i, attr_w in enumerate(self.item_att_W):
-                        rep, att = get_attention(attr_w, embed, len)
-                        attr_rep.append(rep.unsqueeze(2))
-                        att_scores.append(att)
-                    # user_rep : [B, 3(num attr), emb]
-                    user_rep = torch.cat(attr_rep, 2).view(batch,-1)
-            else:
-                batch = embed[0].size(0)
-                attr_rep = []
-                att_scores = []
-
-                for i, attr_w in enumerate(self.item_att_W):
-                    rep, att = get_attention(attr_w, embed[i], len)
-                    attr_rep.append(rep.unsqueeze(2))
-                    att_scores.append(att)
-                # user_rep : [B, 3(num attr), emb]
-                user_rep = torch.cat(attr_rep, 2).view(batch,-1)
+            for i, attr_w in enumerate(self.item_att_W):
+                rep, att = get_attention(attr_w, embed[i], len)
+                attr_rep.append(rep.unsqueeze(2))
+                att_scores.append(att)
+            # user_rep : [B, 3(num attr), emb]
+            user_rep = torch.cat(attr_rep, 2).view(batch,-1)
 
             return user_rep, att_scores
+
 
         def attr_attention(embed, attr_att_W, len):
             batch = embed.size(0)
@@ -220,18 +196,6 @@ class TANDemoPredictor(nn.Module):
                 user_rep = torch.cat(user_rep, 2).view(batch,-1)
             else:
                 user_rep = get_attention(attr_att_W, embed, len)
-            return user_rep
-
-
-        def relation_network(attr_rep, attr_att_W):
-            # attr_rep : [Batch, len(attr) * emb size]
-            user_rep = []
-            #for attr_w in attr_att_W:
-            #	user_rep.append(F.sigmoid(attr_w(attr_rep)))
-            #	print(attr_w(attr_rep).size())
-            self.rn(attr_rep)
-
-            user_rep = torch.cat(user_rep, 1)
             return user_rep
 
 
@@ -253,16 +217,31 @@ class TANDemoPredictor(nn.Module):
 
         # represent items
         if self.share_emb:
-            embed = self.item_emb(x)
-            embed = F.dropout(embed, p=0.2)
-            user_rep, att_scores = item_attention(embed, True, x_len)
+            embeds = []
+            for transfer_w in self.item_transfer:
+                embed = self.item_emb(x)
+                attr_embed = F.relu(transfer_w(embed))
+                embeds.append(attr_embed)
+            '''
+            user_rep = []
+            for emb in embeds:
+                attr_rep = []
+                for j, user_emb in enumerate(emb):
+                    attr_rep.append(torch.sum(user_emb, 0)/x_len[j].float())
+                attr_rep = F.sigmoid(torch.stack(attr_rep, 0))
+                user_rep.append(attr_rep)
+            user_rep = torch.cat(user_rep, 1)
+            '''
+
+            #embed = F.dropout(embed, p=0.2)
+            user_rep, att_scores = item_attention(embeds, False, x_len)
             num_purchase = torch.sum((x!=0), 1)
 
         else:
             embeds = []
             for i in range(len(self.item_emb)):
                 embed = self.item_emb[i](x)
-                embed = F.dropout(embed, p=0.2)
+                #embed = F.dropout(embed, p=0.2)
                 embeds.append(embed)
 
             user_rep, att_scores = item_attention(embeds, False, x_len)
@@ -278,8 +257,7 @@ class TANDemoPredictor(nn.Module):
             # get self attended attribute vector
             # user_attr_rep : [B, emb] * 5
             #user_rep = attr_attention(attr_rep, self.attr_att_W, x_len)
-            #user_rep = relation_network(attr_rep, self.attr_att_W)
-            user_rep = self.rn(attr_rep)
+
         #user_rep = []
         #for i, emb in enumerate(embed):
         #	user_rep.append(torch.sum(emb, 0)/x_len[i].float())
@@ -351,8 +329,8 @@ class TANDemoPredictor(nn.Module):
                 else:
                     logit = np.concatenate((logit, lg), 1)
 
-        if not trainable:
-            self.visualize(x, att_scores, num_purchase, y, logit, vis_file)
+        #if not trainable:
+        #    self.visualize(x, att_scores, num_purchase, y, logit, vis_file)
 
         return logit, loss
 

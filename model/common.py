@@ -81,7 +81,10 @@ def compute_cross_entropy(WU, full_label, start, end, loss_criterion):
 	W_c = W_user[c_idx]
 
 	y_c = torch.from_numpy(np.argmax(y_c, 1)).cuda().long()
-	loss = loss_criterion(W_c, y_c)
+	if y_c.nelement()==0:
+		loss = 0.
+	else:
+		loss = loss_criterion(W_c, y_c)
 
 	logit = W_user.data.cpu().numpy()
 	logit = F.softmax(W_user, dim=1).data.cpu().numpy()

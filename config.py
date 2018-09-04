@@ -32,6 +32,7 @@ def get_args():
     # sharing & model structure
     parser.add_argument('--uniq-input', type=int, default=0)
     parser.add_argument('--share-emb', type=int, default=1)
+    parser.add_argument('--emb-transfer', type=int, default=1)
     parser.add_argument('--share-attention', type=int, default=0)
     parser.add_argument('--attention-layer', type=int, default=1,
                         help="you can choose [1 or 2] when using TAN model")

@@ -12,7 +12,7 @@ np.set_printoptions(threshold=np.inf)
 torch.set_printoptions(threshold=99999)
 
 class AvgPooling(nn.Module):
-    def __init__(self, logger, len_dict, share_emb,
+    def __init__(self, logger, len_dict, share_emb, emb_transfer,
                 item_emb_size, attr_len, learning_form, loss_type,
                 partial_training, use_negsample, tasks=[0,1,2]):
         super(AvgPooling, self).__init__()
@@ -22,24 +22,27 @@ class AvgPooling(nn.Module):
         self.share_emb = share_emb
         self.attr_len = attr_len
         self.learning_form = learning_form
+        self.transfer = emb_transfer
         self.use_negsample = use_negsample
         self.partial_training = partial_training
         self.optimizer = None
         self.loss_type = loss_type
 
         if loss_type == 'classification':
-            weight = torch.load('./data/preprd/beiren/class_loss_weight')
-            self.loss_criterion = nn.ModuleList([nn.CrossEntropyLoss(weight[i]) for i in range(5)])
+            #weight = torch.load('./data/preprd/beiren/class_loss_weight')
+            self.loss_criterion = nn.ModuleList([nn.CrossEntropyLoss() for i in range(len(attr_len))])
         user_size = item_emb_size
         label_size = sum([al for i, al in enumerate(attr_len)])
 
         if share_emb:
             self.item_emb = nn.Embedding(len_dict, item_emb_size, padding_idx=0)
+            self.item_transfer = nn.ModuleList([nn.Linear(item_emb_size, item_emb_size) for i in range(len(attr_len))])
+
         else:
             self.item_emb = nn.ModuleList([nn.Embedding(len_dict, item_emb_size, padding_idx=0)
-                                                for _ in range(5)])
+                                                for _ in range(len(attr_len))])
 
-        if learning_form == 'seperated':
+        if learning_form == 'separated':
             self.W_all = nn.ModuleList()
             for i, al in enumerate(attr_len):
                 if i in tasks:
@@ -61,6 +64,7 @@ class AvgPooling(nn.Module):
 
         self.all_possible = np.asarray(reduce(combinate, all_attr))
 
+
     def forward(self, process, batch, rep=None, vis_file=None, sampling=False):
         x, x_mask, y, ob = batch
         epoch, step = process
@@ -80,20 +84,31 @@ class AvgPooling(nn.Module):
             #embed = F.dropout(embed, p=0.2)
 
             # represent users
-            user_rep = []
-            for i, emb in enumerate(embed):
-                user_rep.append(torch.sum(emb, 0)/x_len[i].float())
-            user_rep = torch.stack(user_rep, 0)
+            user_reps = []
+            for i in range(len(self.tasks)):
+                user_rep = []
+                transfer_w = self.item_transfer[i]
+                for j, emb in enumerate(embed):
+                    if self.transfer:
+                        attr_emb = F.relu(transfer_w(emb))
+                        user_rep.append(torch.sum(attr_emb, 0)/x_len[j].float())
+                        user_rep = F.relu(torch.stack(user_rep, 0))
+
+                    else:
+                        user_rep.append(torch.sum(emb, 0)/x_len[j].float())
+                        user_rep = F.sigmoid(torch.stack(user_rep, 0))
+
+                user_reps.append(user_rep)
 
             # using svd
             #user_rep.data = torch.tensor(rep).cuda().float()
         else:
             user_reps = []
-            for i in range(5):
+            for i in range(len(self.item_emb)):
                 embed = self.item_emb[i](x)
                 user_rep = []
-                for i, emb in enumerate(embed):
-                    user_rep.append(torch.sum(emb, 0)/x_len[i].float())
+                for j, emb in enumerate(embed):
+                    user_rep.append(torch.sum(emb, 0)/x_len[j].float())
                 user_rep = torch.stack(user_rep, 0)
                 user_reps.append(user_rep)
 
@@ -104,27 +119,20 @@ class AvgPooling(nn.Module):
         if self.learning_form == 'structured':
             if not self.share_emb:
                 user_rep = torch.cat(user_reps,1)
-            W_user = self.W(user_rep)
+            W_user = F.relu(self.W(user_rep))
         else:
-            if self.share_emb:
-                for i, W in enumerate(self.W_all):
-                    if i == 0:
-                        W_user = W(user_rep)
-                    else:
-                        W_user = torch.cat((W_user, W(user_rep)), 1)
-            else:
-                for i, W in enumerate(self.W_all):
-                    if i == 0:
-                        W_user = W(user_reps[i])
-                    else:
-                        W_user = torch.cat((W_user, W(user_reps[i])), 1)
+            for i, W in enumerate(self.W_all):
+                if i == 0:
+                    W_user = W(user_reps[i])
+                else:
+                    W_user = torch.cat((W_user, W(user_reps[i])), 1)
 
         W_compact = W_user * ob
         y_c = y * ob
 
         if self.loss_type == 'classification':
             loss = 0
-            for i, t in enumerate([0,1,2,3,4]):
+            for i, t in enumerate(self.tasks):
                 lg, ls = compute_cross_entropy(W_user, y_c, self.cum_len[i], self.cum_len[i+1], self.loss_criterion[i])
                 loss += ls
 
@@ -164,6 +172,3 @@ class AvgPooling(nn.Module):
         if not ob.sum(1).sum(0):
             loss = torch.zeros(1, requires_grad=True).cuda()
         return logit, loss
-
-
-

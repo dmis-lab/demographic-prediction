@@ -44,13 +44,13 @@ class Experiment:
             if args.model_type!='TAN':
                 for tasks in tasks_list:
                     self.model.append(AvgPooling(logger, self.dict.__len__(),
-                                args.share_emb, args.item_emb_size,
+                                args.share_emb, args.emb_transfer, args.item_emb_size,
                                 Dict.attr_len, args.learning_form, args.loss_type,
                                 args.partial_training, args.use_negsample, tasks=tasks).cuda())
             else:
                 for tasks in tasks_list:
                     self.model.append(TANDemoPredictor(logger, self.dict.__len__(), args.item_emb_size,
-                                    args.share_emb, args.share_attention,
+                                    args.share_emb, args.share_attention, args.emb_transfer,
                                     args.attention_layer, Dict.attr_len, args.learning_form, args.loss_type,
                                     args.use_negsample, args.partial_training, tasks = tasks).cuda())
 
@@ -346,5 +346,3 @@ class Experiment:
         self.vis.add_scalar(name+'/max', torch.max(var),step)
         self.vis.add_scalar(name+'/min', torch.min(var),step)
         self.vis.add_histogram(name+'/histogram', var,step,bins='doane')
-
-
