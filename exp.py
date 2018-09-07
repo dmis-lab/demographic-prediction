@@ -43,7 +43,11 @@ class Experiment:
         def build_models(tasks_list):
             if args.model_type!='TAN':
                 for tasks in tasks_list:
-                    self.model.append(AvgPooling(logger, self.dict.__len__(),
+                    if args.model_type=='svd':
+                        svd = 1
+                    else:
+                        svd = 0
+                    self.model.append(AvgPooling(logger, self.dict.__len__(), svd,
                                 args.share_emb, args.emb_transfer, args.item_emb_size,
                                 Dict.attr_len, args.learning_form, args.loss_type,
                                 args.partial_training, args.use_negsample, tasks=tasks).cuda())
@@ -141,28 +145,10 @@ class Experiment:
                 #	self.summary(loss, self.step_count, False)
 
                 if trainable:
-                    # weight decay for parameters selected by us
-                    #wd_lambda = torch.tensor(self.args.weight_decay).cuda()
-                    #wd_l2 = torch.tensor(0.).cuda()
-                    #for name, param in model.named_parameters():
-                    #	if name != 'item_emb.weight':
-                    #		wd_l2 += torch.norm(param)
-                    #loss += wd_lambda * wd_l2
-
                     loss.backward()
                     nn.utils.clip_grad_norm_(model.parameters(), self.args.grad_max_norm)
-
-                    # diminishing the impact of W matrix on model prediction
-                    #for name, param in model.named_parameters():
-                    #	if name != 'item_emb.weight':
-                    #		param.grad *= 1/20
-
                     model.optimizer.step()
 
-                    # diminishing the impact of W matrix on model prediction
-                    #for name, param in model.named_parameters():
-                    #	if name != 'item_emb.weight':
-                    #		param.data *= 1/2
                 ls = loss.data.cpu().numpy()
                 loss_sum += ls
 

@@ -12,13 +12,15 @@ np.set_printoptions(threshold=np.inf)
 torch.set_printoptions(threshold=99999)
 
 class AvgPooling(nn.Module):
-    def __init__(self, logger, len_dict, share_emb, emb_transfer,
+    def __init__(self, logger, len_dict, svd, share_emb, emb_transfer,
                 item_emb_size, attr_len, learning_form, loss_type,
                 partial_training, use_negsample, tasks=[0,1,2]):
         super(AvgPooling, self).__init__()
+        self.svd = svd
         self.tasks = tasks
         self.cum_len = np.concatenate(([0], np.cumsum(np.asarray(attr_len)[tasks])))
         self.logger = logger
+        self.embed_dim = item_emb_size
         self.share_emb = share_emb
         self.attr_len = attr_len
         self.learning_form = learning_form
@@ -29,32 +31,27 @@ class AvgPooling(nn.Module):
         self.loss_type = loss_type
 
         if loss_type == 'classification':
-            #weight = torch.load('./data/preprd/beiren/class_loss_weight')
             self.loss_criterion = nn.ModuleList([nn.CrossEntropyLoss() for i in range(len(attr_len))])
         user_size = item_emb_size
         label_size = sum([al for i, al in enumerate(attr_len)])
 
         if share_emb:
             self.item_emb = nn.Embedding(len_dict, item_emb_size, padding_idx=0)
-            self.item_transfer = nn.ModuleList([nn.Linear(item_emb_size, item_emb_size) for i in range(len(attr_len))])
-
+            if emb_transfer:
+                self.trans_W = nn.ModuleList([nn.Linear(item_emb_size, item_emb_size) for i in range(len(attr_len))])
         else:
             self.item_emb = nn.ModuleList([nn.Embedding(len_dict, item_emb_size, padding_idx=0)
                                                 for _ in range(len(attr_len))])
 
+        # choose a learning method
         if learning_form == 'separated':
             self.W_all = nn.ModuleList()
             for i, al in enumerate(attr_len):
                 if i in tasks:
                     self.W_all.append(nn.Linear(user_size, attr_len[i], bias=True))
         else:
-            if self.share_emb:
-                self.W = nn.Linear(item_emb_size, label_size, bias=True)
-            else:
-                #self.W = nn.Linear(item_emb_size*len(attr_len), label_size, bias=True)
-                self.W = nn.Linear(item_emb_size, label_size, bias=True)
+            self.W = nn.Linear(item_emb_size, label_size, bias=True)
 
-        # choose a learning method
 
         # generate all the possible structured vectors
         all_attr = []
@@ -63,7 +60,16 @@ class AvgPooling(nn.Module):
             all_attr.append(all_class)
 
         self.all_possible = np.asarray(reduce(combinate, all_attr))
+        #self.init_weight(share_emb)
 
+
+    def init_weight(self, share_emb):
+        if share_emb:
+            nn.init.normal_(self.item_emb.weight, std=1 / self.embed_dim ** 0.5)
+        else:
+            for i in range(len(self.item_emb)):
+                nn.init.normal_(self.item_emb[i].weight, std=1 / self.embed_dim ** 0.5)
+                self.item_emb[i].weight.data[0] = 0
 
     def forward(self, process, batch, rep=None, vis_file=None, sampling=False):
         x, x_mask, y, ob = batch
@@ -81,27 +87,33 @@ class AvgPooling(nn.Module):
         # represent items
         if self.share_emb:
             embed = self.item_emb(x)
-            #embed = F.dropout(embed, p=0.2)
-
             # represent users
-            user_reps = []
-            for i in range(len(self.tasks)):
-                user_rep = []
-                transfer_w = self.item_transfer[i]
-                for j, emb in enumerate(embed):
-                    if self.transfer:
-                        attr_emb = F.relu(transfer_w(emb))
+            if self.transfer:
+                user_reps = []
+                for i in range(len(self.tasks)):
+                    user_rep = []
+                    trans_w = self.trans_W[i]
+                    for j, emb in enumerate(embed):
+                        #attr_emb = F.sigmoid(trans_w(emb))
+                        #attr_emb = F.tanh(trans_w(emb))
+                        attr_emb = F.relu(trans_w(emb))
+                        #attr_emb = trans_w(emb)
                         user_rep.append(torch.sum(attr_emb, 0)/x_len[j].float())
-                        user_rep = F.relu(torch.stack(user_rep, 0))
-
-                    else:
+                    #user_rep = F.relu(torch.stack(user_rep, 0))
+                    user_rep = F.sigmoid(torch.stack(user_rep, 0))
+                    #user_rep = F.tanh(torch.stack(user_rep, 0))
+                    #user_rep = torch.stack(user_rep, 0)
+                    user_reps.append(user_rep)
+            else :
+                user_reps = []
+                for i in range(len(self.tasks)):
+                    user_rep = []
+                    for j, emb in enumerate(embed):
                         user_rep.append(torch.sum(emb, 0)/x_len[j].float())
-                        user_rep = F.sigmoid(torch.stack(user_rep, 0))
+                    #user_rep = F.sigmoid(torch.stack(user_rep, 0))
+                    user_rep = torch.stack(user_rep, 0)
+                    user_reps.append(user_rep)
 
-                user_reps.append(user_rep)
-
-            # using svd
-            #user_rep.data = torch.tensor(rep).cuda().float()
         else:
             user_reps = []
             for i in range(len(self.item_emb)):
@@ -112,15 +124,20 @@ class AvgPooling(nn.Module):
                 user_rep = torch.stack(user_rep, 0)
                 user_reps.append(user_rep)
 
-        # add a non-linear
-        #user_rep = F.relu(user_rep)
+        # using svd
+        if self.svd:
+            user_rep.data = torch.tensor(rep).cuda().float()
 
         # masking to distinguish between known and unknown attributes
         if self.learning_form == 'structured':
-            if not self.share_emb:
-                user_rep = torch.cat(user_reps,1)
-            W_user = F.relu(self.W(user_rep))
-        else:
+            if self.share_emb:
+                # SNE (share emb, structured)
+                user_rep = user_reps[0]
+            else:
+                # No usable model with this option
+                user_rep = torch.cat(user_reps, 1)
+            W_user = self.W(user_rep)
+        else: # separated model
             for i, W in enumerate(self.W_all):
                 if i == 0:
                     W_user = W(user_reps[i])
@@ -156,18 +173,13 @@ class AvgPooling(nn.Module):
             # all attr are observed in new-user prediction
             loss = 0
             for i, t in enumerate(self.tasks):
-                #if t == 0:
-                #    weight = Variable(torch.from_numpy(np.asarray([1, 2]))).float().cuda()
-                #else: weight = None
                 weight = None
-
                 lg, ls = compute_loss(W_compact, y, self.cum_len[i], self.cum_len[i+1], weight)
                 loss += ls
                 if i == 0:
                     logit = lg
                 else:
                     logit = np.concatenate((logit, lg), 1)
-        #torch.save(self.item_emb.weight, './save/emb/avg')
 
         if not ob.sum(1).sum(0):
             loss = torch.zeros(1, requires_grad=True).cuda()

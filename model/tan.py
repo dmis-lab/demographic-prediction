@@ -149,7 +149,9 @@ class TANDemoPredictor(nn.Module):
     def forward(self, process, batch, rep, vis_file, trainable=False):
 
         def get_attention(w, embed, len):
+            # Attention score with non linear
             att_u = F.relu(w(embed).squeeze(2))
+            #att_u = F.tanh(w(embed).squeeze(2))
             att_score = torch.zeros(att_u.size()).cuda()
             for i, l in enumerate(len):
                 candi = att_u[i][:l]
@@ -157,17 +159,12 @@ class TANDemoPredictor(nn.Module):
                 att_score[i][:l] = a
 
             attnd_emb = embed * att_score.unsqueeze(2)
-            #attnd_emb = embed
 
-            rep = F.sigmoid(torch.sum(attnd_emb, 1))
-            #rep = torch.sum(attnd_emb, 1)
+            #rep = F.sigmoid(torch.sum(attnd_emb, 1))
+            rep = F.tanh(torch.sum(attnd_emb, 1))
             #rep = F.relu(torch.sum(attnd_emb, 1))
-            #rep = F.dropout(rep, p=0.2)
-            #user_rep = []
-            #for i, emb in enumerate(attnd_emb):
-            #	user_rep.append(F.relu(torch.sum(emb, 0)/x_len[i].float()))
-            #user_rep = torch.stack(user_rep, 0)
-            #rep = (torch.mean(attnd_emb, 1))
+            #rep = torch.sum(attnd_emb, 1)
+
             return rep, att_score
 
         def item_attention(embed, share_emb, len):
@@ -199,10 +196,6 @@ class TANDemoPredictor(nn.Module):
             return user_rep
 
 
-        #def combined_prediction(attr_rep):
-                # attr_rep : [Batch, len(attr) * emb size]
-        #	attr_rep = attr_rep.view(-1, len(self.attr_len), self.item_emb_size)
-
         x, x_mask, y, ob = batch
 
         epoch, step = process
@@ -218,24 +211,26 @@ class TANDemoPredictor(nn.Module):
         # represent items
         if self.share_emb:
             embeds = []
-            for transfer_w in self.item_transfer:
-                embed = self.item_emb(x)
-                attr_embed = F.relu(transfer_w(embed))
-                embeds.append(attr_embed)
-            '''
-            user_rep = []
-            for emb in embeds:
-                attr_rep = []
-                for j, user_emb in enumerate(emb):
-                    attr_rep.append(torch.sum(user_emb, 0)/x_len[j].float())
-                attr_rep = F.sigmoid(torch.stack(attr_rep, 0))
-                user_rep.append(attr_rep)
-            user_rep = torch.cat(user_rep, 1)
-            '''
+            if self.transfer:
+                # always use translation in TAN model
+                for transfer_w in self.item_transfer:
+                    embed = self.item_emb(x)
+                    attr_embed = F.relu(transfer_w(embed))
+                    #attr_embed = transfer_w(embed)
+                    embeds.append(attr_embed)
 
-            #embed = F.dropout(embed, p=0.2)
-            user_rep, att_scores = item_attention(embeds, False, x_len)
-            num_purchase = torch.sum((x!=0), 1)
+                user_rep, att_scores = item_attention(embeds, False, x_len)
+                num_purchase = torch.sum((x!=0), 1)
+
+            else:
+                for i in range(len(self.tasks)):
+                    embed = self.item_emb(x)
+                    #embed = F.dropout(embed, p=0.2)
+                    embeds.append(embed)
+
+                user_rep, att_scores = item_attention(embeds, False, x_len)
+                num_purchase = torch.sum((x!=0), 1)
+
 
         else:
             embeds = []
@@ -247,9 +242,6 @@ class TANDemoPredictor(nn.Module):
             user_rep, att_scores = item_attention(embeds, False, x_len)
             num_purchase = torch.sum((x!=0), 1)
 
-        # get negative samples
-        #neg_samples = self.draw_sample(x.size(0), y)
-
         if self.attention_layer==2:
             # with item level & attr self attention
             # attr_rep : [B, K, 5(num attr)]
@@ -258,35 +250,15 @@ class TANDemoPredictor(nn.Module):
             # user_attr_rep : [B, emb] * 5
             #user_rep = attr_attention(attr_rep, self.attr_att_W, x_len)
 
-        #user_rep = []
-        #for i, emb in enumerate(embed):
-        #	user_rep.append(torch.sum(emb, 0)/x_len[i].float())
-        #user_rep = torch.stack(user_rep, 0)
-
         # appropriate prediction layer for each output type
         if self.learning_form == 'structured':
             W_user = self.W(user_rep)
         else:
-            '''
-            user_attr_rep = user_rep.transpose(0, 1)
             for i, W in enumerate(self.W_all):
                 if i == 0:
-                    W_user = W(user_attr_rep[i])
+                    W_user = W(user_rep[:,:self.item_emb_size])
                 else:
-                    W_user = torch.cat((W_user, W(user_attr_rep[i])), 1)
-            '''
-            if self.share_emb:
-                for i, W in enumerate(self.W_all):
-                    if i == 0:
-                        W_user = W(user_rep[:,:self.item_emb_size])
-                    else:
-                        W_user = torch.cat((W_user, W(user_rep[:,i*self.item_emb_size:(i+1)*self.item_emb_size])), 1)
-            else:
-                for i, W in enumerate(self.W_all):
-                    if i == 0:
-                        W_user = W(user_rep[:,:self.item_emb_size])
-                    else:
-                        W_user = torch.cat((W_user, W(user_rep[:,i*self.item_emb_size:(i+1)*self.item_emb_size])), 1)
+                    W_user = torch.cat((W_user, W(user_rep[:,i*self.item_emb_size:(i+1)*self.item_emb_size])), 1)
 
         # masking to distinguish between known and unknown attributes
         W_compact = W_user * ob
@@ -333,21 +305,3 @@ class TANDemoPredictor(nn.Module):
         #    self.visualize(x, att_scores, num_purchase, y, logit, vis_file)
 
         return logit, loss
-
-        '''
-        # all attr are observed in new-user prediction
-        loss = 0
-        for i, t in enumerate(self.tasks):
-            #if t == 0:
-            #    weight = Variable(torch.from_numpy(np.asarray([1, 2]))).float().cuda()
-            #else: weight = None
-            weight = None
-            lg, ls = compute_loss(W_user, y, self.cum_len[i], self.cum_len[i+1], weight)
-            loss += ls
-            if i == 0:
-                logit = lg
-            else:
-                logit = np.concatenate((logit, lg), 1)
-
-        return logit, loss
-        '''
