@@ -80,8 +80,6 @@ class Experiment:
         num_samples = data_loader.dataset.__len__()
         num_steps = (num_samples // self.args.batch_size) + 1
         self.num_steps = num_steps
-        self.logger.info("== {} mode : {} steps for {} samples == \n"
-                        .format(data_loader.dataset.data_type, num_steps, num_samples))
 
 
         self.y_em_counter, self.yp_counter, self.yt_counter = Counter(), Counter(), Counter()
@@ -118,8 +116,8 @@ class Experiment:
             if (i+1) % self.args.print_per_step == 0:
                 hm, macP, macR, macF1, wP, wR, wF1 = self.get_score()
                 t1 = time.clock()
-                self.logger.info("< Step {} > Loss={:5.3f}, time:{:5.2}, Hamming={:2.3f}"
-                                .format(self.step, loss_sum/self.step, t1-t0, hm))
+                self.logger.info("< {} : step {} > Loss={:5.3f}, time:{:5.2}, Hamming={:2.3f}"
+                                .format(data_loader.dataset.data_type, self.step, loss_sum/self.step, t1-t0, hm))
                 self.logger.info("macro - macP:{:2.3f}, macR:{:2.3f}, macF1:{:2.3f}"
                                 .format(macP, macR, macF1))
                 self.logger.info("weighted - wP:{:2.3f}, wR:{:2.3f}, wF1:{:2.3f}"

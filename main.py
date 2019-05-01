@@ -125,9 +125,9 @@ def main():
     args = get_args()
 
     # set random seeds
-    np.random.seed(args.rand_seed)
-    random.seed(args.rand_seed)
-    torch.manual_seed(args.rand_seed)
+    #np.random.seed(args.rand_seed)
+    #random.seed(args.rand_seed)
+    #torch.manual_seed(args.rand_seed)
 
     # set a logger
     model_id = time.strftime("%Y%m%d-") + str(uuid.uuid4())[:8]

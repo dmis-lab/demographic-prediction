@@ -26,7 +26,7 @@ class ETNADemoPredictor(nn.Module):
         # item embedding matrix
         self.item_emb = nn.Embedding(len_dict, item_emb_size, padding_idx=0)
         # item transformation matrix
-        self.emb_tran = nn.ModuleList([nn.Linear(item_emb_size, item_emb_size) for i in range(len(attr_len))])
+        self.emb_tran = nn.ModuleList([nn.Linear(item_emb_size, item_emb_size, bias=False) for i in range(len(attr_len))])
         
         if model_type == 'ETNA':
             # item attention matrix
@@ -117,7 +117,7 @@ class ETNADemoPredictor(nn.Module):
             user_rep = user_rep.sum(2).transpose(1,0).contiguous().view(y.size(0), -1)
             user_rep = user_rep / x_len.unsqueeze(1).float()
             # add a non-linear
-            user_rep = torch.sigmoid(user_rep)
+            #user_rep = torch.sigmoid(user_rep)
 
         # Prediction Layer
         for i, W in enumerate(self.W_all):

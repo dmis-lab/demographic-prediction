@@ -46,14 +46,11 @@ def get_args():
             help="Whether not to use CUDA when available")
     parser.add_argument('--save-log', type=int, default=0)
     parser.add_argument('--print-per-step', type=int, default=9999)
-    parser.add_argument('--vis-per-step', type=int, default=100)
-    parser.add_argument('--print-attr-score', type=int, default=0)
 
     # regularization
-    parser.add_argument('--no-early-stop', action='store_false', default=True,
-                        help="you can combinate two words which are from in each set: [mic, mac, w] and [P, R, F1]")
+    parser.add_argument('--no-early-stop', action='store_false', default=True)
     parser.add_argument('--weight-decay', type=float, default=1e-5)
-    parser.add_argument('--lr-decay', type=float, default=0.0)
+    parser.add_argument('--lr-decay', type=float, default=0.9)
 
     args = parser.parse_args()
     return args

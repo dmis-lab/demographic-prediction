@@ -65,7 +65,9 @@ def compute_loss(W_user, label, ob, start, end, no_cuda, weight=None):
             loss = -torch.sum(obj.log())
         batch_size = y_c.size(0)
     else:
-        loss = torch.tensor(0, requires_grad=True).float()
+        loss = torch.tensor(0., requires_grad=True).float()
+        if torch.cuda.is_available() and not no_cuda:
+            loss = loss.cuda()
         batch_size = 1
 
     return prob, loss / batch_size
