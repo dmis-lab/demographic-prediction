@@ -16,31 +16,26 @@ class ETNADemoPredictor(nn.Module):
     def __init__(self, logger, model_type, len_dict, item_emb_size, attr_len, no_cuda):
         super(ETNADemoPredictor, self).__init__()
 
-        #
-        tasks = [0,1,2]
-        #
         self.logger = logger
         self.model_type = model_type
         self.attr_len = attr_len
-        self.cum_len = np.concatenate(([0], np.cumsum(np.asarray(attr_len)[tasks])))
-        self.tasks = tasks
         self.item_emb_size = item_emb_size
         self.no_cuda = no_cuda
         self.optimizer = None
 
-        label_size = sum([al for i, al in enumerate(attr_len) if i in tasks])
-
+        # item embedding matrix
         self.item_emb = nn.Embedding(len_dict, item_emb_size, padding_idx=0)
+        # item transformation matrix
         self.emb_tran = nn.ModuleList([nn.Linear(item_emb_size, item_emb_size) for i in range(len(attr_len))])
         
         if model_type == 'ETNA':
+            # item attention matrix
             self.item_att_W = nn.ModuleList([nn.Linear(item_emb_size, 1) for i in range(len(attr_len))])
 
-        # appropriate prediction layer for output type
+        # prediction matrix for each attribute
         self.W_all = nn.ModuleList()
-        for i, al in enumerate(attr_len):
-            if i in tasks:
-                self.W_all.append(nn.Linear(item_emb_size, attr_len[i], bias=False))
+        for i, _ in enumerate(attr_len):
+            self.W_all.append(nn.Linear(item_emb_size, attr_len[i], bias=False))
 
     
     def forward(self, x, x_mask, y, ob, trainable=False):
@@ -94,13 +89,14 @@ class ETNADemoPredictor(nn.Module):
 
         y = torch.from_numpy(y).float()
         ob = torch.from_numpy(ob).float()
+        x_len = torch.sum(x_mask.long(), 1)
         if torch.cuda.is_available() and not self.no_cuda:
             x = x.cuda()
             x_mask = x_mask.cuda()
             y = y.cuda()
             ob = ob.cuda()
-        x_len = torch.sum(x_mask.long(), 1)
-        
+            x_len = x_len.cuda()
+
         # Shared Embedding Layer
         embed = self.item_emb(x)
         
@@ -114,11 +110,12 @@ class ETNADemoPredictor(nn.Module):
             # Task-Specific Attention Layer
             user_rep, att_scores = item_attention(embeds, False, x_len)
         else:
-            # In ETN, user representations are computed by summing item embedding vectors.
+            # In ETN, user representations are computed by averaging item embedding vectors.
             user_rep = torch.stack(embeds)
             x_mask_ = x_mask.unsqueeze(0).unsqueeze(3).expand(user_rep.size())
             user_rep = user_rep*x_mask_.float()
             user_rep = user_rep.sum(2).transpose(1,0).contiguous().view(y.size(0), -1)
+            user_rep = user_rep / x_len.unsqueeze(1).float()
             # add a non-linear
             user_rep = torch.sigmoid(user_rep)
 
@@ -129,20 +126,18 @@ class ETNADemoPredictor(nn.Module):
             else:
                 W_user = torch.cat((W_user, W(user_rep[:,i*self.item_emb_size:(i+1)*self.item_emb_size])), 1)
 
-        # masking to distinguish between known and unknown attributes
-        W_compact = W_user * ob
-        y_c = y * ob
-
         # all attr are observed in new-user prediction
         loss = 0
-        for i, t in enumerate(self.tasks):
-            weight = None
-            lg, ls = compute_loss(W_compact, y, self.cum_len[i], self.cum_len[i+1], self.no_cuda, weight)
+        s = e = 0
+        for i, t in enumerate(self.attr_len):
+            e += t
+            lg, ls = compute_loss(W_user, y, ob, s, e, self.no_cuda)
             loss += ls
             if i == 0:
                 logit = lg
             else:
                 logit = np.concatenate((logit, lg), 1)
+            s = e
         return logit, loss
 
 

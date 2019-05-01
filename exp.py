@@ -101,7 +101,7 @@ class Experiment:
                 else:
                     self.model.eval()
 
-                logit, loss = self.model(x, x_mask, y, ob, trainable)
+                prob, loss = self.model(x, x_mask, y, ob, trainable)
                 
                 if trainable:
                     loss.backward()
@@ -111,9 +111,9 @@ class Experiment:
                 ls = loss.item()
                 loss_sum += ls
             else:
-                logit = None
+                prob = None
 
-            self.accumulate_score(logit, y, ob)
+            self.accumulate_score(prob, y, ob)
 
             if (i+1) % self.args.print_per_step == 0:
                 hm, macP, macR, macF1, wP, wR, wF1 = self.get_score()
@@ -129,14 +129,14 @@ class Experiment:
         return loss_sum / num_steps, hm, macP, macR, macF1, wP, wR, wF1
 
 
-    def accumulate_score(self, logit, label, observed):
+    def accumulate_score(self, prob, label, observed):
         y_numbering = np.asarray([[j if l else 0 for j, l in enumerate(ll)] \
                                         for i, ll in enumerate(label)])
 
         if self.args.model_type == 'POP':
             popular = [[0, 1, 0, 1, 0, 0, 0, 1] \
                         for _ in range(y_numbering.shape[0])]
-            logit = popular
+            prob = popular
         
         for b_idx, ob in enumerate(observed):
             pred, true = [],[]
@@ -144,7 +144,7 @@ class Experiment:
             for a_idx, al in enumerate(self.attr_len):
                 end = start + al
                 if sum(ob[start:end]):
-                    p = np.argmax(logit[b_idx][start:end], 0) + start
+                    p = np.argmax(prob[b_idx][start:end], 0) + start
                     t = sum(y_numbering[b_idx][start:end])
                     pred.append(p)
                     true.append(t)

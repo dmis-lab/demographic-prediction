@@ -30,20 +30,20 @@ def draw_neg_sample(batch_size, attr_len, label, observed):
         neg_samples.append(neg_sample)
     return torch.stack(neg_samples)
 
-def compute_loss(WU, full_label, start, end, no_cuda, weight=None):
-    W_user = WU.transpose(1,0)[start:end].transpose(1,0)
-    y = full_label.transpose(1,0)[start:end].transpose(1,0)
+def compute_loss(W_user, label, ob, start, end, no_cuda, weight=None):
+    W_c = W_user * ob
+    W_c = W_c.transpose(1,0)[start:end].transpose(1,0)
+    y = label.transpose(1,0)[start:end].transpose(1,0)
 
-    logit = W_user.data.cpu().numpy()
-    logit = F.softmax(W_user, dim=1).data.cpu().numpy()
+    prob = F.softmax(W_c, dim=1).cpu().detach().numpy()
 
-    c_idx = [i for i, s in enumerate(W_user.sum(1).data.cpu().numpy()) if s]
+    c_idx = [i for i, s in enumerate(W_c.sum(1).cpu().detach().numpy()) if s]
 
     if c_idx:
         c_idx = (torch.from_numpy(np.asarray(c_idx))).long()
         if torch.cuda.is_available() and not no_cuda:
             c_idx = c_idx.cuda()
-        W_user = torch.index_select(W_user, 0, c_idx)
+        W_c = torch.index_select(W_c, 0, c_idx)
         y_c = torch.index_select(y, 0, c_idx)
         
         all_possible = [[1 if i==j else 0 for j in range(end-start)] \
@@ -55,8 +55,8 @@ def compute_loss(WU, full_label, start, end, no_cuda, weight=None):
 
         denom = 0
         for case in all_possible:
-            denom += torch.sum(W_user*case, 1).exp()
-        obj = torch.sum(W_user*y_c, 1).exp() / denom
+            denom += torch.sum(W_c*case, 1).exp()
+        obj = torch.sum(W_c*y_c, 1).exp() / denom
 
         if weight is not None:
             weighted = torch.sum(y_c * weight, 1)
@@ -68,7 +68,7 @@ def compute_loss(WU, full_label, start, end, no_cuda, weight=None):
         loss = torch.tensor(0, requires_grad=True).float()
         batch_size = 1
 
-    return logit, loss / batch_size
+    return prob, loss / batch_size
 
 
 

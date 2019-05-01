@@ -15,11 +15,7 @@ class AvgPooling(nn.Module):
     def __init__(self, logger, model_type, len_dict, item_emb_size, attr_len, no_cuda):
         super(AvgPooling, self).__init__()
         
-        #
-        self.tasks = [0,1,2]
-        #
         self.model_type = model_type
-        self.cum_len = np.concatenate(([0], np.cumsum(np.asarray(attr_len)[self.tasks])))
         self.logger = logger
         self.embed_dim = item_emb_size
         self.attr_len = attr_len
@@ -44,8 +40,7 @@ class AvgPooling(nn.Module):
         else:
             self.W_all = nn.ModuleList()
             for i, al in enumerate(attr_len):
-                if i in self.tasks:
-                    self.W_all.append(nn.Linear(item_emb_size, attr_len[i], bias=True))
+                self.W_all.append(nn.Linear(item_emb_size, attr_len[i], bias=True))
 
 
     def forward(self, x, x_mask, y, ob, trainable=False):
@@ -78,7 +73,7 @@ class AvgPooling(nn.Module):
                     W_user = W(user_rep)
                 else:
                     W_user = torch.cat((W_user, W(user_rep)), 1)
-
+        
         W_compact = W_user * ob
         y_c = y * ob
 
@@ -96,21 +91,17 @@ class AvgPooling(nn.Module):
         else:
             # all attr are observed in new-user prediction
             loss = 0
-            for i, t in enumerate(self.tasks):
-                weight = None
-                lg, ls = compute_loss(W_compact, y, self.cum_len[i], self.cum_len[i+1], self.no_cuda, weight)
+            s = e = 0
+            for i, t in enumerate(self.attr_len):
+                e += t
+                lg, ls = compute_loss(W_user, y, ob, s, e, self.no_cuda)
                 loss += ls
                 if i == 0:
                     logit = lg
                 else:
                     logit = np.concatenate((logit, lg), 1)
+                s = e
         
-        if not ob.sum():
-            print(ob)
-            loss = torch.zeros(1, requires_grad=True)
-            if torch.cuda.is_available() and not self.no_cuda:
-                loss = loss.cuda()
-            sys.exit()
         return logit, loss
 
 
