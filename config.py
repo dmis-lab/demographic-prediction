@@ -14,7 +14,7 @@ def get_args():
     parser.add_argument('--num-workers', type=int, default=2)
 
     # task settings
-    parser.add_argument('--task-type', type=str, default='new_user',
+    parser.add_argument('--task-type', type=str, default='new_user', required=True,
                         help="[partial50, new_user]")
 
     # optimizations
@@ -35,8 +35,8 @@ def get_args():
     parser.add_argument('--num-batches', type=int, default=20)
 
     # model's parameters
-    parser.add_argument('--model-type', type=str, default='ETNA',
-                        help="[POP, JNE, SNE, ETN, ETNA]")
+    parser.add_argument('--model-type', type=str, default='ETNA', required=True,
+                        help="[POP, ETN, ETNA]")
     parser.add_argument('--loss-type', type=str, default='likelihood',
                         help="[classification, likelihood]")
 
