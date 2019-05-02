@@ -29,7 +29,7 @@ To train our model on `partial task with 50% of observation ratio` (with default
 python main.py --model_type ETNA --task_type partial50 
 ```
 
-Experiments on other observed ratios are also available:
+Experiments on other observed ratios are also available as follows:
 ```
 python main.py --model_type ETNA --task_type partial10 
 ```
