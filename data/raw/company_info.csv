@@ -1,0 +1,497 @@
+company_idx,company_cd,cate_lg,cate_sm
+1,UNK,,
+2,O11712,food,Restaurant
+3,K10309,food,Groceries
+4,K10326,unk,Books
+5,K00002,life,Sanitary pad
+6,O11682,event,E-commerce
+7,I60003,event,Event
+8,I10174,communication,Communications
+9,O11219,necessities,E-commerce
+10,K10246,unk,Books
+11,K10552,unk,Books
+12,I10141,e-commerce,Restaurant
+13,O11776,necessities,Communications
+14,O30025,life,Hospital
+15,O11057,finance,Credit card
+16,O11652,finance,Loan
+17,K10621,necessities,Retailer
+18,O11570,e-commerce,E-commerce
+19,O11426,food,Cafe
+20,I10060,e-commerce,E-commerce
+21,O11396,necessities,Necessities
+22,K10435,life,Office supplies
+23,K10413,unk,Books
+24,K10563,necessities,Supermarket
+25,I10090,food,Food
+26,O11075,life,Hotel
+27,O11051,necessities,Baby clothes
+28,I10097,communication,Communications
+29,K10491,mileage,Mileage
+30,O11004,life,Automobile repair
+31,O11045,necessities,Sports clothes
+32,O11711,food,Restaurant
+33,O11415,life,Resort
+34,O11632,life,Sauna
+35,K10220,necessities,Farm product
+36,K10536,unk,Food
+37,O11654,life,Beauty
+38,O11298,event,Event
+39,O11609,food,Cafe
+40,O11106,necessities,Record shop
+41,K10678,e-commerce,E-commerce
+42,O11430,entertainment,Theater
+43,O11202,finance,Credit card
+44,K10569,life,Automobile repair
+45,O11270,necessities,Supermarket
+46,O11722,life,Maternity clinic
+47,I10133,necessities,Gas
+48,I10170,e-commerce,Entertainment
+49,O11121,necessities,Automobile accessaries
+50,O10033,food,Cafe
+51,O11428,entertainment,Theater
+52,O11517,necessities,Health food
+53,O11364,event,Event
+54,O11459,life,Sauna
+55,O11414,life,Resort
+56,K00016,e-commerce,E-commerce
+57,O11565,finance,Credit card
+58,O11003,necessities,Apparel
+59,I60001,communication,Communications
+60,O11165,event,Event
+61,I50003,e-commerce,Entertainment
+62,K10035,food,Food
+63,O11563,e-commerce,E-commerce
+64,O11541,life,Tour
+65,K10002,food,Food
+66,K10516,unk,Gift
+67,O11559,e-commerce,E-commerce
+68,O11489,life,Life etc
+69,O11660,finance,Loan
+70,O11686,event,Cosmetics
+71,O11512,necessities,Apparel
+72,K10314,food,Food
+73,O11560,necessities,Tour
+74,O30021,finance,Financial
+75,K10617,unk,Educational institute
+76,O11347,finance,Insuarance
+77,K10192,life,Cosmetics
+78,K10500,unk,E-commerce
+79,O11619,event,Event
+80,O11792,life,Hairdresser
+81,K10672,food,Food
+82,K10656,event,Retailer
+83,K00012,unk,Life etc
+84,I10059,necessities,Mobile device
+85,K10620,necessities,Bath supplies
+86,I10105,e-commerce,Entertainment
+87,O11515,life,Automobile repair
+88,O11710,food,Restaurant
+89,O11727,life,Food
+90,O11222,food,Cafe
+91,O11680,e-commerce,E-commerce
+92,I10185,life,Event
+93,O40002,life,Hotel
+94,O11684,food,Restaurant
+95,I10093,entertainment,Sports event
+96,I10190,e-commerce,E-commerce
+97,O20020,necessities,Books
+98,K10530,life,Contraceptive equipment
+99,O11758,necessities,Apparel
+100,K10117,necessities,Groceries
+101,O11606,food,Cafe
+102,O11635,e-commerce,Food
+103,O11745,life,Transportation
+104,O11763,life,Parcel
+105,K10529,food,Restaurant
+106,O11599,life,Resort
+107,O11647,e-commerce,E-commerce
+108,O20008,necessities,Supermarket
+109,K10462,food,Food
+110,O11673,food,Café
+111,O11697,e-commerce,Apparel
+112,O11360,mileage,Mileage
+113,I10143,event,Event
+114,K10084,life,Laundry soap
+115,O11579,necessities,Gift
+116,I10123,necessities,Apparel
+117,K10266,unk,Books
+118,      ,,
+119,O11133,e-commerce,Online Game
+120,O11368,e-commerce,E-commerce
+121,I10079,e-commerce,Duty free
+122,K00007,life,Cosmetics
+123,I10007,life,Car rent
+124,O11779,food,Restaurant
+125,O11694,entertainment,Performance
+126,K10519,unk,Books
+127,O11136,e-commerce,Communications
+128,O11555,e-commerce,Communications
+129,O11636,entertainment,Entertainment
+130,O11617,life,Automobile repair
+131,O11468,finance,Credit card
+132,O11159,necessities,Home appliance
+133,O30017,life,Hairdresser
+134,O11464,food,Bakery
+135,I50001,fuel,Gas
+136,I10063,life,Automobile repair
+137,O11329,necessities,Stationery store
+138,I10118,event,Event
+139,O11575,event,Event
+140,K10460,life,Home electronic appliances
+141,O11558,necessities,E-commerce
+142,O11037,event,Event
+143,K10437,unk,Books
+144,K10334,food,Food
+145,O11183,necessities,Supermarket
+146,O11408,necessities,Books
+147,O11664,necessities,Retailer
+148,O11346,necessities,Hotel
+149,O11491,necessities,Apparel
+150,O11486,entertainment,Video
+151,I10181,necessities,Retailer
+152,O11508,food,Restaurant
+153,K10219,necessities,Health food
+154,O11510,finance,Insuarance
+155,I10213,finance,Financial
+156,K10555,unk,Books
+157,I10089,necessities,Gas
+158,K10571,event,Gas
+159,O11277,food,Bar
+160,O11421,necessities,Pet
+161,K10576,unk,Books
+162,O10029,food,Bakery
+163,K10036,fuel,Gas
+164,O11131,necessities,Sports clothes
+165,K10009,necessities,Medicine
+166,O11383,entertainment,Theater
+167,K10231,unk,Convenience store
+168,O11532,life,Life etc
+169,K10282,unk,Books
+170,O10013,life,Educational institute
+171,O11371,life,Sauna
+172,I10110,finance,Credit card
+173,O11128,finance,Credit card
+174,O11576,necessities,Financial
+175,K10661,necessities,Stationery store
+176,O11530,necessities,Communications
+177,O11243,e-commerce,E-commerce
+178,O11582,entertainment,Theater
+179,K10329,unk,Books
+180,O11753,life,Beauty
+181,O11523,necessities,Stationery store
+182,I10137,life,Transportation
+183,K10175,unk,Books
+184,O11225,e-commerce,E-commerce
+185,O11234,necessities,Supermarket
+186,K00025,food,Groceries
+187,O11240,e-commerce,E-commerce
+188,O11174,food,Bakery
+189,O11769,necessities,Food
+190,K10587,unk,Books
+191,O11248,e-commerce,Automobile repair
+192,O11411,life,Life etc
+193,U00004,necessities,Supermarket
+194,K10520,unk,Books
+195,K10586,unk,Books
+196,O11457,life,Airline
+197,O11422,e-commerce,E-commerce
+198,O11752,finance,Insuarance
+199,O11701,food,Fast food
+200,I10108,e-commerce,Entertainment
+201,I10165,necessities,Health food
+202,O11519,entertainment,Sports activity
+203,O11197,necessities,Apparel
+204,O11465,mileage,Mileage
+205,I20001,life,Photo Studio
+206,K10616,unk,Books
+207,O11623,entertainment,Video
+208,O11081,life,Hairdresser
+209,K00010,unk,Food
+210,K10609,unk,Event
+211,I10160,e-commerce,E-commerce
+212,O20023,necessities,Supermarket
+213,K10421,life,Parcel
+214,O11323,e-commerce,Theater
+215,O11042,necessities,Bedding
+216,O11765,event,Cosmetics
+217,O11718,life,Event
+218,O30002,finance,Credit card
+219,O11591,food,Restaurant
+220,K10505,food,Food
+221,O11492,entertainment,Theater
+222,O11438,life,Resort
+223,O11275,necessities,Convenience store
+224,K10381,unk,Event
+225,O11634,e-commerce,Educational institute
+226,I60004,event,Event
+227,I10115,necessities,Gas
+228,O11705,life,Medical etc
+229,I10102,e-commerce,Entertainment
+230,I10109,e-commerce,Entertainment
+231,K10281,life,Laundry soap
+232,O11087,e-commerce,Books
+233,O11461,e-commerce,Books
+234,O11552,life,Educational institute
+235,O11375,food,Fast food
+236,O11011,necessities,Apparel
+237,O11600,necessities,Flower
+238,O10008,necessities,Optician
+239,G10001,finance,Credit card
+240,K10273,unk,Necessities
+241,O11578,necessities,Stationery store
+242,O11546,entertainment,Theater
+243,U00002,necessities,Supermarket
+244,K10365,life,Necessities
+245,O11685,food,Restaurant
+246,O11666,necessities,Duty free
+247,I10113,life,Automobile repair
+248,K10188,unk,Kitchen supplies
+249,O11649,necessities,Home electronic appliances
+250,K10303,life,Office supplies
+251,I10095,event,Gas
+252,O11480,e-commerce,Tour
+253,O11613,necessities,Home electronic appliances
+254,K10575,food,Bar
+255,O11379,e-commerce,Duty free
+256,O11646,necessities,Cosmetics
+257,O11259,necessities,Duty free
+258,O11640,food,Restaurant
+259,O11611,necessities,Office supplies
+260,O11307,necessities,Interior design
+261,O11285,e-commerce,Automobile repair
+262,O11268,necessities,Supermarket
+263,O11678,life,Hairdresser
+264,K10251,unk,Home appliance
+265,I10011,life,Hairdresser
+266,I10111,e-commerce,Event
+267,O11659,life,Chauffeur service
+268,O11380,finance,Insuarance
+269,K10394,unk,Books
+270,O11717,necessities,Baby carriage
+271,O11500,necessities,Retailer
+272,I10179,e-commerce,Self-Defense
+273,O11303,necessities,Optician
+274,O11198,necessities,Supermarket
+275,O11412,life,Resort
+276,O11518,life,Resort
+277,O11413,life,Resort
+278,O11389,life,Market research
+279,I10119,communication,Communications
+280,O11495,e-commerce,Educational institute
+281,I10104,e-commerce,Entertainment
+282,O11076,food,Fast food
+283,I10175,life,Automobile repair
+284,K10202,unk,Books
+285,K10005,life,Kitchen supplies
+286,O11672,food,Bakery
+287,O20011,necessities,Optician
+288,O11378,event,Performance
+289,O11699,life,Museum
+290,O11695,entertainment,Performance
+291,O11653,finance,Financial
+292,O11638,life,Resort
+293,O11603,food,Restaurant
+294,I10107,e-commerce,Entertainment
+295,O11164,entertainment,Theater
+296,O11742,entertainment,Video
+297,O11392,e-commerce,Performance
+298,O11665,life,Fast food
+299,O11580,necessities,Flower
+300,O11524,food,Bakery
+301,I10122,event,Event
+302,I10062,life,Automobile repair
+303,O11488,necessities,Retailer
+304,O11627,food,Restaurant
+305,O11050,entertainment,Sports event
+306,O11592,e-commerce,E-commerce
+307,O11644,event,Cosmetics
+308,K10169,unk,Books
+309,K10675,e-commerce,E-commerce
+310,O90006,finance,Credit card
+311,O11146,life,Hairdresser
+312,I10083,necessities,Necessities
+313,I10112,life,Automobile repair
+314,I10138,food,Gas
+315,O11674,necessities,Apparel
+316,I10150,life,Event
+317,O11237,mileage,Mileage
+318,O11052,necessities,Baby clothes
+319,O11467,necessities,Apparel
+320,O11551,life,Educational institute
+321,I10129,e-commerce,Automobile accessaries
+322,I10154,food,Restaurant
+323,I10070,e-commerce,Entertainment
+324,O11436,necessities,E-commerce
+325,O11733,e-commerce,Books
+326,O11336,necessities,Stationery store
+327,I10101,e-commerce,Entertainment
+328,K10503,life,Retailer
+329,O11481,e-commerce,Theater
+330,O11425,e-commerce,Fast food
+331,O11484,finance,Credit card
+332,I10134,communication,Mileage
+333,I10125,event,Event
+334,K10538,life,Home electronic appliances
+335,O11156,food,Bar
+336,O11048,food,Fast-food
+337,I80001,event,Event
+338,A00001,event,Event
+339,O11735,necessities,Stationery store
+340,I10092,event,Event
+341,O10003,food,Bakery
+342,K10016,food,Food
+343,O11677,life,Hairdresser
+344,O11245,necessities,Department store
+345,O11482,necessities,Dairy product
+346,K10470,life,Necessities
+347,O11584,life,Educational institute
+348,O11564,life,Chauffeur service
+349,K00003,food,Dairy product
+350,I10194,life,Photo
+351,O11676,food,Restaurant
+352,O11618,event,Event
+353,O11044,necessities,Necessities
+354,I10078,necessities,Apparel
+355,I10005,e-commerce,Entertainment
+356,O11341,necessities,Pet
+357,U00006,necessities,Supermarket
+358,O11692,necessities,Convenience store
+359,K10388,unk,Event
+360,I10205,life,Event
+361,I10164,e-commerce,Performance
+362,O11320,necessities,Mobile device
+363,O11487,necessities,Health food
+364,O11557,necessities,Stationery store
+365,I10103,e-commerce,Entertainment
+366,I10001,necessities,Supermarket
+367,O20016,necessities,Pharmacy
+368,O11356,e-commerce,E-commerce
+369,K10297,life,E-commerce
+370,O11474,necessities,Home appliance
+371,O11593,necessities,Optician
+372,I10132,necessities,Duty free
+373,K10615,necessities,Necessities
+374,O11255,necessities,Retailer
+375,K10004,food,Food
+376,I10086,e-commerce,Entertainment
+377,O11271,food,Bakery
+378,O11526,life,Chauffeur service
+379,O11641,food,Fast food
+380,O11648,food,Fast food
+381,K10180,unk,Books
+382,O11639,food,Restaurant
+383,I10068,e-commerce,E-commerce
+384,O11504,finance,Credit card
+385,O11483,food,Restaurant
+386,O11708,life,Life etc
+387,O11410,food,Bakery
+388,O11274,entertainment,Theater
+389,U00001,necessities,Supermarket
+390,O11335,finance,Financial
+391,K10424,unk,Mileage
+392,I10106,e-commerce,Entertainment
+393,I10148,communication,Mileage
+394,O11566,finance,Credit card
+395,I10100,communication,Communications
+396,I10114,necessities,Event
+397,K10582,e-commerce,Entertainment
+398,O11669,necessities,Convenience store
+399,O10028,food,Fast food
+400,K10223,food,Bakery
+401,O11511,food,Restaurant
+402,O11299,entertainment,Theater
+403,O11454,necessities,Books
+404,O11621,life,Airline
+405,O11055,necessities,Department store
+406,O11598,life,Educational institute
+407,I10120,e-commerce,Entertainment
+408,K10032,life,Necessities
+409,I10084,life,Gas
+410,O11397,necessities,Cosmetics
+411,K10204,unk,Books
+412,O11605,life,Market research
+413,O11625,food,Bakery
+414,I10193,mileage,Mileage
+415,I10096,communication,Communications
+416,I10200,food,Fast food
+417,K10614,necessities,Financial
+418,I10082,e-commerce,Entertainment
+419,K10540,unk,Books
+420,K10019,life,Cosmetics
+421,O11707,life,Car wash
+422,O11631,necessities,Cosmetics
+423,O11191,entertainment,Leisure
+424,O11521,life,Tour
+425,O11671,life,Beauty
+426,I60005,e-commerce,E-commerce
+427,O11597,necessities,Cosmetics
+428,I10155,life,Chauffeur service
+429,I10080,necessities,Duty free
+430,K10488,e-commerce,E-commerce
+431,O11748,life,Event
+432,O11429,mileage,Mileage
+433,K10471,life,Kitchen supplies
+434,O11444,necessities,Apparel
+435,O11516,life,Real estate
+436,K10433,unk,Cosmetics
+437,O11331,food,Cafe
+438,O11154,necessities,Supermarket
+439,K10434,life,Insuarance
+440,O11628,food,Fast food
+441,O11538,life,Sports
+442,U00003,necessities,Supermarket
+443,O11447,life,Market research
+444,O11614,food,Bakery
+445,I10130,necessities,E-commerce
+446,K10671,e-commerce,E-commerce
+447,I90003,e-commerce,Life etc
+448,O11005,entertainment,Amusement park
+449,O20019,necessities,Jewelry
+450,I10206,e-commerce,Video
+451,O11657,necessities,Office supplies
+452,O11455,event,Event
+453,K10574,necessities,Retailer
+454,O11141,life,Hairdresser
+455,I10191,e-commerce,Gift
+456,K10271,unk,Books
+457,I10151,e-commerce,Event
+458,K10665,food,Food
+459,K10517,life,Real estate
+460,K10331,life,Office supplies
+461,K10406,necessities,Necessities
+462,O11725,life,Hospital
+463,K00004,life,Department store
+464,K00014,unk,Bakery
+465,O11007,food,Fast-food
+466,O11505,food,Restaurant
+467,O11583,life,Educational institute
+468,O11645,necessities,Retailer
+469,K10353,food,Restaurant
+470,O11569,necessities,Department store
+471,K10624,life,Retailer
+472,O11620,necessities,Financial
+473,O11496,entertainment,Gym
+474,I10142,event,Gas
+475,O11667,food,Cafe
+476,O11406,e-commerce,Entertainment
+477,O11466,necessities,Cosmetics
+478,K10634,unk,Books
+479,O11252,e-commerce,E-commerce
+480,K10199,unk,Books
+481,O11616,event,Retailer
+482,K10397,unk,Necessities
+483,I10171,e-commerce,E-commerce
+484,I10204,life,Market research
+485,O11437,life,Laundry
+486,O20001,necessities,Department store
+487,I10075,event,Event
+488,O11350,necessities,Supermarket
+489,O11478,e-commerce,Books
+490,O11503,food,Restaurant
+491,I10002,necessities,Supermarket
+492,K10548,life,Cosmetics
+493,O11544,e-commerce,E-commerce
+494,K10566,unk,Books
+495,O11476,necessities,Pharmacy
+496,O10004,food,Restaurant

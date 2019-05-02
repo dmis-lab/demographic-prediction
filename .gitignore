@@ -1,10 +1,3 @@
-data
-data/raw/beiren
-data/raw/ocb
-data/raw/movieLens
-data/preprd/beiren
-data/preprd/ocb
-data/preprd/movieLens
 save/*
 openrec/
 __pycache__

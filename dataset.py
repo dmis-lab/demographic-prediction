@@ -4,6 +4,7 @@ import random
 import os
 import sys
 import torch
+import re
 from torch.utils.data import Dataset
 from config import get_args
 
@@ -20,9 +21,9 @@ class Dictionary(object):
 
     def __init__(self, data_path, task_type):
         if task_type == 'new_user':
-            data_path = os.path.join(data_path, task_type, 'dict')
+            data_path = os.path.join(data_path, task_type, 'dict.json')
         else:
-            data_path = os.path.join(data_path, 'partial', 'dict_' + task_type)
+            data_path = os.path.join(data_path, 'partial', 'dict.json')
         load_file = json.load(open(data_path))
         self.dict = load_file['dict']
         self.attr_len = load_file['attr_len']
@@ -43,21 +44,15 @@ class DemoAttrDataset(Dataset):
         self.history = self.label = self.observed = None
         
         if task_type == 'new_user':
-            data_path = os.path.join(data_path, task_type, data_type)
+            data = json.load(open(os.path.join(data_path, task_type, data_type)))
+            history = data['history']
+            label = data['label']
         else:
-            data_path = os.path.join(data_path, 'partial', task_type)
+            users = json.load(open(os.path.join(data_path, 'partial', 'users.json')))
+            history = users['history']
+            label = users['attribute']
+            observed = json.load(open(os.path.join(data_path, 'partial', task_type)))['observed']
 
-        # load data
-        data = json.load(open(data_path))
-
-        history, label, observed = [],[],[]
-        history = data['history']
-        label = data['label']
-        
-        if 'observed' in data.keys():
-            observed = data['observed']
-        else:
-            observed = np.zeros((len(history), len(label[0])))
         shuffled_idx = list(range(len(history)))
         self.history = np.asarray(history)[shuffled_idx].tolist()
         self.label = np.asarray(label)[shuffled_idx].tolist()

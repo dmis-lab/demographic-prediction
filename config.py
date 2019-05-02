@@ -5,16 +5,15 @@ def get_args():
     parser = argparse.ArgumentParser()
 
     # data
-    parser.add_argument('--dataset', type=str, default='ocb',
-                        help="[beiren, ocb, movieLens]")
-    parser.add_argument('--data-path', type=str, default="./data/preprd/",
+    parser.add_argument('--dataset', type=str, default='mvp')
+    parser.add_argument('--data-path', type=str, default="./data/preprd",
                         help="")
     parser.add_argument('--rand-seed', type=int, default=1)
     parser.add_argument('--data-shuffle', type=int, default=0)
     parser.add_argument('--num-workers', type=int, default=2)
 
     # task settings
-    parser.add_argument('--task-type', type=str, default='new_user', required=True,
+    parser.add_argument('--task-type', type=str, default='partial50', required=True,
                         help="[partial50, new_user]")
 
     # optimizations
@@ -30,15 +29,13 @@ def get_args():
     parser.add_argument('--batch-size', type=int, default=64)
     parser.add_argument('--user-emb-dim', type=int, default=100)
     parser.add_argument('--num-negs', type=int, default=1)
-    parser.add_argument('--max-epoch', type=int, default=20000)
+    parser.add_argument('--max-epoch', type=int, default=100)
     parser.add_argument('--grad-max-norm', type=float, default=5)
     parser.add_argument('--num-batches', type=int, default=20)
 
-    # model's parameters
+    # model selection
     parser.add_argument('--model-type', type=str, default='ETNA', required=True,
                         help="[POP, ETN, ETNA]")
-    parser.add_argument('--loss-type', type=str, default='likelihood',
-                        help="[classification, likelihood]")
 
     # debugging and analysis
     parser.add_argument('--do-validation', action='store_true', default=False)
