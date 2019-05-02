@@ -2,7 +2,7 @@
 
 This is our Pytorch implementation for the paper:
 
-Raehyun Kim and Hyunjae Kim (2019). *[Predicting Multiple Demographic Attributes with Task Specific Embedding Transformation and Attention Network.](https://arxiv.org/abs/1903.10144)* In Proceedings of Siam  Data Mining (SDM'19)
+Raehyun Kim and Hyunjae Kim (2019). *[Predicting Multiple Demographic Attributes with Task Specific Embedding Transformation and Attention Network.](https://arxiv.org/abs/1903.10144)* In Proceedings of SIAM International Conference on Data Mining (SDM'19)
 
 Please cite our paper if you use the code or datasets.
 
