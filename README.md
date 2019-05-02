@@ -26,6 +26,6 @@ And user should specify observation ratio for  partial prediction task.
 To train our model on `partial task with 50% of observation ratio` (with default hyper-parameters): 
 
 ```
-python main.py --model_type=ETNA --task_type=partial50 
+python main.py --model_type ETNA --task_type partial50 
 ```
 
