@@ -36,3 +36,5 @@ python main.py --model_type ETNA --task_type partial10
 
 If you want to test our model on validation set for searching your own hyper-parameters, use '--do-validation' argument.
 
+Note that we do not provide validation set, so you should use some portion of the training set as validation set.
+
