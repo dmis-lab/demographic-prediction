@@ -29,5 +29,10 @@ To train our model on `partial task with 50% of observation ratio` (with default
 python main.py --model_type ETNA --task_type partial50 
 ```
 
+Experiments on other observed ratios are also available:
+```
+python main.py --model_type ETNA --task_type partial10 
+```
+
 If you want to test your model on validation set for searching hyper-parameters, use '--do-validation' argument.
 
