@@ -34,5 +34,5 @@ Experiments on other observed ratios are also available as follows:
 python main.py --model_type ETNA --task_type partial10 
 ```
 
-If you want to test your model on validation set for searching hyper-parameters, use '--do-validation' argument.
+If you want to test our model on validation set for searching your own hyper-parameters, use '--do-validation' argument.
 
