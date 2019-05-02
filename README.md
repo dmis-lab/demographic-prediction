@@ -18,7 +18,7 @@ MVP dataset consists of three files. `[Company_info, User_info, Purchase_history
 * `user_info.csv` : User's demographic information (processed as class).
 * `purchase_history.json` : Each user's purchasing history.
 
-## Model Training
+## Model Training and Evaluation
 We have two type of task settings. (New user and partial prediction)
 
 And user should specify observation ratio for  partial prediction task.
@@ -28,4 +28,6 @@ To train our model on `partial task with 50% of observation ratio` (with default
 ```
 python main.py --model_type ETNA --task_type partial50 
 ```
+
+If you want to test your model on validation set for searching hyper-parameters, use '--do-validation' argument.
 
