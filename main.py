@@ -111,7 +111,6 @@ def run_experiment(args, logger):
         if args.model_type == 'POP': break
 
         if stop_cnt >= 5 and not args.no_early_stop:
-            #torch.save('./save/emb/avg')
             return max_epoch, max_loss, max_hm, \
                     max_macP, max_macR, max_macF1, \
                     max_wP, max_wR, max_wF1

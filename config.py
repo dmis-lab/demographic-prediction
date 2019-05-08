@@ -45,7 +45,7 @@ def get_args():
     parser.add_argument('--print-per-step', type=int, default=9999)
 
     # regularization
-    parser.add_argument('--no-early-stop', action='store_false', default=True)
+    parser.add_argument('--no-early-stop', action='store_true', default=False)
     parser.add_argument('--weight-decay', type=float, default=1e-5)
     parser.add_argument('--lr-decay', type=float, default=0.9)
 

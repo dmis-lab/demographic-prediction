@@ -117,7 +117,7 @@ class ETNADemoPredictor(nn.Module):
             user_rep = user_rep.sum(2).transpose(1,0).contiguous().view(y.size(0), -1)
             user_rep = user_rep / x_len.unsqueeze(1).float()
             # add a non-linear
-            #user_rep = torch.sigmoid(user_rep)
+            user_rep = torch.sigmoid(user_rep)
 
         # Prediction Layer
         for i, W in enumerate(self.W_all):

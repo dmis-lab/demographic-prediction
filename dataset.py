@@ -21,7 +21,7 @@ class Dictionary(object):
 
     def __init__(self, data_path, task_type):
         if task_type == 'new_user':
-            data_path = os.path.join(data_path, task_type, 'dict.json')
+            data_path = os.path.join(data_path, task_type, 'dict')
         else:
             data_path = os.path.join(data_path, 'partial', 'dict.json')
         load_file = json.load(open(data_path))
@@ -47,6 +47,7 @@ class DemoAttrDataset(Dataset):
             data = json.load(open(os.path.join(data_path, task_type, data_type)))
             history = data['history']
             label = data['label']
+            observed = data['observed']
         else:
             users = json.load(open(os.path.join(data_path, 'partial', 'users.json')))
             history = users['history']
