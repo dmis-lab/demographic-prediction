@@ -11,4 +11,6 @@ __pycache__
 *.pkl
 *.html
 *.txt
+model/baselines
+
 

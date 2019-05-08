@@ -18,7 +18,6 @@ import torch.optim as optim
 from tensorboardX import SummaryWriter
 
 from dataset import Dictionary
-from model.baselines import AvgPooling
 from model.etna import ETNADemoPredictor
 
 
@@ -39,9 +38,6 @@ class Experiment:
         device = torch.device("cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu")
         if args.model_type == 'POP':
             self.model = 'POP'
-        elif any([True if args.model_type == m else False for m in ['JNE', 'SNE']]):
-            self.model = AvgPooling(logger, args.model_type, self.dict.__len__(), 
-                        args.item_emb_size, Dict.attr_len, args.no_cuda).to(device)
         elif any([True if args.model_type == m else False for m in ['ETN', 'ETNA']]):
             self.model = ETNADemoPredictor(logger, args.model_type, self.dict.__len__(), 
                     args.item_emb_size, Dict.attr_len, args.no_cuda).to(device)
