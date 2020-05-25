@@ -38,3 +38,15 @@ If you want to test our model on validation set for searching your own hyper-par
 
 Note that we do not provide validation set, so you should use some portion of the training set as validation set.
 
+
+## Reference
+```
+@inproceedings{kim2019predicting,
+  title={Predicting multiple demographic attributes with task specific embedding transformation and attention network},
+  author={Kim, Raehyun and Kim, Hyunjae and Lee, Janghyuk and Kang, Jaewoo},
+  booktitle={Proceedings of the 2019 SIAM International Conference on Data Mining},
+  pages={765--773},
+  year={2019},
+  organization={SIAM}
+}
+```
