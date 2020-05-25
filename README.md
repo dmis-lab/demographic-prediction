@@ -4,8 +4,6 @@ This is our Pytorch implementation for the paper:
 
 Raehyun Kim and Hyunjae Kim (2019). *[Predicting Multiple Demographic Attributes with Task Specific Embedding Transformation and Attention Network.](https://arxiv.org/abs/1903.10144)* In Proceedings of SIAM International Conference on Data Mining (SDM'19)
 
-Please cite our paper if you use the code or datasets.
-
 The code is tested under a Linux desktop (w/ TiTan X - Pascal) with Pytorch 1.0.0. and Python 3.
 
 
@@ -40,6 +38,7 @@ Note that we do not provide validation set, so you should use some portion of th
 
 
 ## Reference
+Please cite our paper if you use the code or datasets. 
 ```
 @inproceedings{kim2019predicting,
   title={Predicting multiple demographic attributes with task specific embedding transformation and attention network},
